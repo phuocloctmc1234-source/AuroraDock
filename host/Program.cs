@@ -73,7 +73,7 @@ namespace Aurora
 
     class Host : Form
     {
-        readonly WebView2 wv = new WebView2();
+        WebView2 wv = new WebView2();
         readonly string appDir; readonly bool debug; public static bool noTaskbar;
         uint appBarMsg; bool barRegistered; string edge = "bottom"; double barSize = 80; bool reserve = true;
         IntPtr lastFg = IntPtr.Zero;
@@ -133,8 +133,14 @@ namespace Aurora
                 {
                     bool busy = false;
                     try { Env = await CoreWebView2Environment.CreateAsync(null, ud, opts); await wv.EnsureCoreWebView2Async(Env); break; }
-                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 8 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); }
-                    if (busy) await System.Threading.Tasks.Task.Delay(2500);
+                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 8 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); if (attempt == 1 || attempt == 4) KillOrphanWebViews(); }
+                    if (busy)
+                    {
+                        await System.Threading.Tasks.Task.Delay(2500);
+                        // dieu khien WebView2 da hong khong the khoi tao lai: phai tao dieu khien MOI cho lan thu sau
+                        try { Controls.Remove(wv); wv.Dispose(); } catch { }
+                        wv = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.Transparent }; Controls.Add(wv);
+                    }
                 }
                 var c = wv.CoreWebView2;
                 c.ProcessFailed += delegate(object s, CoreWebView2ProcessFailedEventArgs a)
@@ -185,6 +191,24 @@ namespace Aurora
         void Post(string json)
         {
             try { BeginInvoke(new Action(delegate { try { wv.CoreWebView2.PostWebMessageAsString(json); } catch { } })); } catch { }
+        }
+        // Host da giu mutex nen khong con ban Aurora nao khac: moi msedgewebview2 dung thu muc du lieu cua Aurora la tien trinh MO COI
+        // (cua lan chay truoc bi tat dot ngot) va dang chan WebView moi (0x800700AA). Chi dong dung nhung tien trinh nay.
+        static void KillOrphanWebViews()
+        {
+            try
+            {
+                int me = Process.GetCurrentProcess().Id;
+                using (var s = new System.Management.ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'msedgewebview2.exe'"))
+                    foreach (System.Management.ManagementObject o in s.Get())
+                    {
+                        string cl = Convert.ToString(o["CommandLine"]) ?? "";
+                        if (cl.IndexOf(@"AuroraDock\WebView2", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        try { Process.GetProcessById(Convert.ToInt32(o["ProcessId"])).Kill(); } catch { }
+                    }
+                App.Log("da dong WebView mo coi cua Aurora");
+            }
+            catch (Exception e) { App.Log("kill orphan: " + e.Message); }
         }
         public static Host Instance;
         public static CoreWebView2Environment Env;     // dung chung cho cua so Shift Desk: khong tao them bo tien trinh WebView2 thu hai

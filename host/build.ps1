@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Force -Path $Out | Out-Null
 Copy-Item (Join-Path $lib '*.dll') $Out -Force
 
 $refs = @(
-  'System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'System.Web.Extensions.dll', 'System.Security.dll',
+  'System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'System.Web.Extensions.dll', 'System.Security.dll', 'System.Management.dll',
   (Join-Path $fw 'System.Runtime.dll'),
   (Join-Path $fw 'System.Runtime.WindowsRuntime.dll'),
   (Join-Path $lib 'Microsoft.Web.WebView2.Core.dll'),
