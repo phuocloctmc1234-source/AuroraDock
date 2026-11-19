@@ -1,0 +1,9 @@
+# ban build (installer tu bien dich lai)
+bin/
+# sao luu / log / du lieu cuc bo
+*.aurora-bak
+*.tmp
+host.log
+# goi phat hanh dung GitHub Releases, khong commit
+*.zip
+*-Setup*.exe

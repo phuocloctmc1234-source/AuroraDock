@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora Dock</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;background:transparent}
+body:not(.hosted){background:linear-gradient(135deg,#1a1040,#0b1a3a)}
+#nohost{display:none;position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;text-align:center;font-size:14px;line-height:1.5;opacity:.9}
+body:not(.hosted) #nohost{display:block}
+#nohost b{display:block;font-size:20px;margin-bottom:6px}
+/* ---------- dock ---------- */
+.dock{--rgb:255,255,255;--a:.14;--ba:.45;--fg:#fff;--mx:50%;--my:50%;
+ position:fixed;z-index:20;display:flex;align-items:center;gap:2px;padding:7px 8px;border-radius:26px;color:var(--fg);
+ background:linear-gradient(180deg,rgba(var(--rgb),calc(var(--a) + .08)),rgba(var(--rgb),var(--a)) 45%,rgba(var(--rgb),calc(var(--a) * .6)));
+ border:1px solid rgba(255,255,255,calc(var(--ba) * .55));
+ box-shadow:inset 0 1.5px 0 rgba(255,255,255,var(--ba)),inset 0 -1.5px 0 rgba(255,255,255,calc(var(--ba) * .35)),inset 0 0 22px rgba(255,255,255,.06);
+ transition:top .5s cubic-bezier(.3,1.3,.5,1),bottom .5s cubic-bezier(.3,1.3,.5,1),left .4s,right .4s,transform .4s;
+ max-width:calc(100vw - 20px)}
+.dock::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+ background:radial-gradient(240px 90px at var(--mx) var(--my),rgba(255,255,255,.26),transparent 70%),linear-gradient(115deg,rgba(255,255,255,.2) 0,transparent 28%,transparent 72%,rgba(255,255,255,.08) 100%);opacity:.9}
+.dock::after{content:"";position:absolute;left:14px;right:14px;top:1px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);pointer-events:none;opacity:calc(var(--ba) + .2)}
+.dock.bottom{bottom:calc(14px + var(--ib,0px))}.dock.top{top:calc(14px + var(--it,0px))}
+.dock.pill{left:50%;transform:translateX(-50%)}
+.dock.full{left:10px;right:10px;transform:none;justify-content:flex-start}
+.dock.full.bottom{bottom:calc(8px + var(--ib,0px))}.dock.full.top{top:calc(8px + var(--it,0px))}
+.track{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none;max-width:100%;position:relative;z-index:1;padding:1px}
+.track::-webkit-scrollbar{display:none}
+.dock.full .track{flex:1}
+.w{flex:none;display:flex;align-items:center;gap:9px;padding:7px 12px;border-radius:18px;cursor:pointer;transition:background .2s,transform .2s;position:relative;white-space:nowrap;user-select:none}
+.w:hover{background:rgba(255,255,255,.16);transform:translateY(-1px)}
+.w.act{background:rgba(255,255,255,.22)}
+.w+.w::before{content:"";position:absolute;left:-1px;top:22%;bottom:22%;width:1px;background:rgba(255,255,255,.14)}
+.w:hover::before,.w:hover+.w::before{opacity:0}
+.w .t{display:flex;flex-direction:column;line-height:1.15}
+.w .v{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.w .l{font-size:10.5px;opacity:.72;letter-spacing:.2px;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.w.dim{opacity:.7}
+.up{color:#7dffb2}.dn{color:#ff9a9a}
+.chip{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 2px 6px rgba(0,0,0,.25);flex:none}
+.ring{width:30px;height:30px;flex:none;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:3.5;stroke-linecap:round}
+.ring .bg{stroke:rgba(255,255,255,.2)}
+.mini{display:flex;flex-direction:column;gap:4px;width:54px}
+.eq{display:flex;gap:2px;align-items:flex-end;height:16px}
+.eq i{width:3px;background:currentColor;border-radius:2px;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.6s}
+.paused .eq i,.eq.paused i{animation-play-state:paused}
+@keyframes eq{0%,100%{height:4px}50%{height:16px}}
+.startb,.gear{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;cursor:pointer;position:relative;z-index:1;transition:background .2s,transform .5s}
+.startb{margin-right:2px}.startb:hover{background:rgba(255,255,255,.2)}
+.gear{margin-left:4px}.gear:hover{background:rgba(255,255,255,.2);transform:rotate(90deg)}
+/* ---------- thanh tac vu (cua so dang mo that) ---------- */
+.tasks{display:flex;gap:3px;align-items:center}
+.task{position:relative;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;cursor:pointer;transition:background .15s,transform .15s}
+.task:hover{background:rgba(255,255,255,.18);transform:translateY(-3px)}
+.task.act{background:rgba(255,255,255,.26)}
+.task img{width:24px;height:24px;pointer-events:none}
+.task b{font-size:13px;pointer-events:none}
+.task.run::after{content:"";position:absolute;bottom:2px;left:50%;width:10px;height:3px;margin-left:-5px;border-radius:2px;background:#fff;opacity:.6}
+.task.act::after{width:16px;margin-left:-8px;opacity:1}
+.task.min img{opacity:.55}
+.task em{position:absolute;right:1px;top:0;min-width:14px;height:14px;border-radius:7px;background:rgba(0,0,0,.55);font-size:9px;font-style:normal;display:grid;place-items:center;padding:0 3px;pointer-events:none}
+/* ---------- popover / panel / toast ---------- */
+.glass{background:linear-gradient(180deg,rgba(var(--rgb,255,255,255),calc(var(--a,.14) + .1)),rgba(var(--rgb,255,255,255),calc(var(--a,.14) + .02)));
+ border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.45);color:var(--fg,#fff)}
+.pop{position:fixed;z-index:30;width:270px;padding:14px;border-radius:22px;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(8px) scale(.97);transition:opacity .2s,transform .25s cubic-bezier(.3,1.4,.5,1),visibility .25s}
+.pop.show{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.pop h4{font-size:12px;font-weight:600;opacity:.75;margin-bottom:4px;text-transform:uppercase;letter-spacing:.6px}
+.pop .big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.pop .row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(255,255,255,.14)}
+.pop .row span{opacity:.85}.pop .row b{font-weight:600;text-align:right;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop .row:first-of-type{margin-top:8px}
+.pop svg.sp{width:100%;height:50px;margin-top:8px}
+.pop .note{font-size:11px;opacity:.6;margin-top:8px;line-height:1.35}
+.pop .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pop a{color:inherit;text-decoration:underline;cursor:pointer}
+.pop .win{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px}
+.pop .win span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.pop .win button{border:0;background:transparent;color:inherit;opacity:.6;cursor:pointer;font-size:14px}
+.pop .win button:hover{opacity:1}
+.todo{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.14);font-size:13px}
+.todo i{width:16px;height:16px;border-radius:5px;border:1.5px solid rgba(255,255,255,.6);flex:none;cursor:pointer;display:grid;place-items:center;font-size:11px;font-style:normal}
+.todo.d i{background:#34c58a;border-color:#34c58a}.todo.d span{opacity:.55;text-decoration:line-through}
+.todo span{flex:1;cursor:pointer}.todo button{border:0;background:transparent;color:inherit;opacity:.5;cursor:pointer}
+.btn{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.18);color:inherit;padding:6px 12px;border-radius:12px;font:inherit;font-size:12.5px;cursor:pointer;transition:background .2s}
+.btn:hover{background:rgba(255,255,255,.32)}
+.panel{position:fixed;z-index:40;right:16px;top:calc(16px + var(--it,0px));bottom:calc(16px + var(--ib,0px));width:360px;max-width:calc(100vw - 32px);border-radius:26px;padding:18px 18px 22px;overflow-y:auto;transform:translateX(calc(100% + 30px));visibility:hidden;transition:transform .5s cubic-bezier(.3,1.1,.5,1),visibility .5s;scrollbar-width:thin}
+.panel.show{transform:none;visibility:visible}
+body.pos-bottom .panel{bottom:calc(92px + var(--ib,0px))}
+body.pos-top .panel{top:calc(92px + var(--it,0px))}
+.panel h2{font-size:17px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.panel .sub{font-size:12px;opacity:.7;margin-bottom:14px}
+.panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;opacity:.7;margin:18px 0 8px}
+.seg{display:flex;background:rgba(0,0,0,.18);border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;border:0;background:transparent;color:inherit;font:inherit;font-size:12.5px;padding:6px 4px;border-radius:9px;cursor:pointer;transition:background .2s}
+.seg button.on{background:rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.sty{border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px 4px;text-align:center;font-size:11.5px;cursor:pointer;background:rgba(255,255,255,.08);transition:all .2s}
+.sty.on{background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.7)}
+.sty i{display:block;height:14px;border-radius:7px;margin:0 6px 6px;border:1px solid rgba(255,255,255,.4)}
+.sl{display:flex;align-items:center;gap:10px;font-size:12.5px;margin:7px 0}
+.sl span{width:128px;opacity:.85;flex:none}.sl b{width:34px;text-align:right;font-weight:500;opacity:.8;font-variant-numeric:tabular-nums}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:rgba(255,255,255,.28);outline:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0}
+.tg small{display:block;font-size:11px;opacity:.6}
+.sw{flex:none;width:38px;height:22px;border-radius:12px;background:rgba(255,255,255,.25);position:relative;cursor:pointer;transition:background .25s;border:1px solid rgba(255,255,255,.25)}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);transition:transform .25s cubic-bezier(.3,1.5,.5,1)}
+.sw.on{background:#34c58a}.sw.on::after{transform:translateX(16px)}
+.grp{font-size:11px;opacity:.55;margin:10px 0 2px}
+.toasts{position:fixed;left:50%;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toasts.bottom{bottom:calc(96px + var(--ib,0px))}.toasts.top{top:calc(96px + var(--it,0px))}
+.toast{padding:10px 16px;border-radius:16px;font-size:13px;animation:ti .4s cubic-bezier(.3,1.4,.5,1)}
+@keyframes ti{from{opacity:0;transform:translateY(10px) scale(.95)}}
+.inp{width:100%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.18);color:inherit;border-radius:12px;padding:8px 10px;font:inherit;font-size:12.5px;outline:0;color-scheme:dark}
+.sl .inp{flex:1;width:auto}
+.dsrc{margin:10px 0;padding:10px;border-radius:14px;background:rgba(0,0,0,.14)}
+.dsrc b{font-size:12.5px}.dsrc .st{font-size:11px;opacity:.75;margin-left:6px}
+.dsrc .hp{font-size:11px;opacity:.6;margin:3px 0 6px;line-height:1.35}
+.dsrc .r{display:flex;gap:6px;margin-top:6px}
+body.eco .eq i{animation:none;height:10px}
+body.eco .toast{animation:none}
+body.eco .dock,body.eco .w,body.eco .gear,body.eco .task{transition:none}
+body.eco .pop,body.eco .panel{transition:opacity .12s,visibility .12s,transform .12s}
+.sd{position:absolute;right:7px;top:6px;width:8px;height:8px;border-radius:50%;background:#7dffb2;box-shadow:0 0 6px rgba(125,255,178,.8)}
+.sd.pend{background:#ffd166;box-shadow:0 0 6px rgba(255,209,102,.8)}.sd.off{background:#ff7a7a;box-shadow:0 0 6px rgba(255,122,122,.9)}.sd.local{background:#8fd3ff;box-shadow:0 0 6px rgba(143,211,255,.8)}
+.cd{position:fixed;left:50%;transform:translateX(-50%);z-index:55;display:none;align-items:center;gap:12px;padding:10px 14px;border-radius:18px;font-size:13px;white-space:nowrap;max-width:calc(100vw - 20px)}
+.cd.on{display:flex}.cd.bottom{bottom:calc(104px + var(--ib,0px))}.cd.top{top:calc(104px + var(--it,0px))}
+.cd .bar{width:80px;height:4px;border-radius:2px;background:rgba(255,255,255,.25);overflow:hidden;flex:none}.cd .bar i{display:block;height:100%;width:100%;background:currentColor}
+.log{max-height:190px;overflow:auto;font-size:11.5px;border-radius:12px;background:rgba(0,0,0,.16);padding:4px 8px}
+.log div{display:flex;gap:7px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.08)}.log time{opacity:.6;flex:none;font-variant-numeric:tabular-nums}
+body.compact .w .l{display:none}body.compact .w{padding:8px 9px}
+.mini2{font-size:11.5px;opacity:.75;line-height:1.4}
+.row2{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.danger{border-color:rgba(255,122,122,.7)}
+/* ---------- bong bong chat @mention (kieu chat head) ---------- */
+#bubbles{position:fixed;z-index:25;top:38vh;right:10px;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+#bubbles.left{right:auto;left:10px}
+#bubbles.snap{transition:left .3s cubic-bezier(.3,1.4,.5,1),right .3s,top .2s}
+.bubble{pointer-events:auto;width:52px;height:52px;border-radius:50%;position:relative;display:grid;place-items:center;font-weight:700;font-size:21px;color:#fff;cursor:pointer;touch-action:none;user-select:none;
+ background:linear-gradient(135deg,var(--c1,#6a8cff),var(--c2,#a05bff));border:2.5px solid rgba(255,255,255,.9);box-shadow:0 8px 20px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.55);
+ animation:bpop .55s cubic-bezier(.3,1.7,.5,1) both;transition:transform .15s}
+.bubble:hover{transform:scale(1.08)}
+.bubble.new{animation:bpop .55s cubic-bezier(.3,1.7,.5,1) both,bwig .9s .55s ease-in-out}
+.bubble.out{animation:bout .22s ease-in forwards}
+.bubble.more{background:rgba(40,44,70,.85);font-size:15px}
+.bubble .bn{position:absolute;right:-5px;top:-5px;min-width:21px;height:21px;border-radius:11px;background:#ff3b5c;color:#fff;font-size:11.5px;font-style:normal;font-weight:700;display:grid;place-items:center;border:2px solid #fff;padding:0 4px}
+.bubble::after{content:"@";position:absolute;left:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;background:#fff;color:#ff3b5c;font-size:12px;font-weight:800;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+@keyframes bpop{from{transform:scale(.2);opacity:0}}
+@keyframes bout{to{transform:scale(.2);opacity:0}}
+@keyframes bwig{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(5deg)}}
+body.eco .bubble{animation:none}
+#bcard{position:fixed;z-index:35;width:310px;padding:13px;border-radius:20px;opacity:0;visibility:hidden;pointer-events:none;transform:scale(.94);transition:opacity .18s,transform .22s cubic-bezier(.3,1.5,.5,1),visibility .2s}
+#bcard.show{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+#bcard .bh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+#bcard .bh b{font-size:13.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bcard .bh span{font-size:11px;opacity:.65}
+#bcard .bm{padding:7px 0;border-top:1px solid rgba(255,255,255,.14)}
+#bcard .bm small{display:flex;justify-content:space-between;font-size:11px;opacity:.7;margin-bottom:2px}
+#bcard .bm p{font-size:13px;line-height:1.35;display:-webkit-box;line-clamp:3;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+#bcard .bf{display:flex;gap:6px;margin-top:8px}
+#bcard .bf .btn{flex:1}
+</style>
+</head>
+<body class="eco">
+<div id="nohost"><b>Aurora Dock</b>Trang này cần chạy bên trong <b style="display:inline;font-size:inherit">AuroraHost.exe</b> để lấy dữ liệu thật của máy (cửa sổ, CPU, Claude…). Hãy mở bằng <b style="display:inline;font-size:inherit">Chay-thu.bat</b> hoặc shortcut đã cài.</div>
+
+<div class="dock bottom pill" id="dock">
+ <div class="startb" id="startb" title="Start (phím Windows)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="1"/><rect x="1" y="8.5" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1"/></svg></div>
+ <div class="track" id="track"></div>
+ <div class="gear" id="gear" title="Cài đặt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+</div>
+<div id="bubbles"></div>
+<div class="bcard glass" id="bcard"></div>
+<div class="pop glass" id="pop"></div>
+<div class="cd glass bottom" id="cd"></div>
+<div class="toasts bottom" id="toasts"></div>
+
+<div class="panel glass" id="panel">
+ <h2>Aurora Dock <button class="btn" id="close">Đóng</button></h2>
+ <div class="sub" id="ver">Liquid Glass · bản 2.0 · dữ liệu thật</div>
+
+ <h3>Giao diện Windows</h3>
+ <div class="mini2">Thanh taskbar gốc của Windows</div>
+ <div class="seg" id="segTb" style="margin-top:6px"><button data-v="keep">Giữ nguyên</button><button data-v="autohide">Tự ẩn</button><button data-v="hide">Ẩn hẳn</button></div>
+ <div class="mini2" style="margin-top:6px">“Ẩn hẳn” thay taskbar bằng dock nhưng mất khay hệ thống (icon cạnh đồng hồ). Phím Windows vẫn mở Start. Khẩn cấp: <b>Ctrl+Alt+Shift+Q</b> thoát và trả taskbar lại.</div>
+ <div class="tg"><span>Chừa vùng làm việc<small>Cửa sổ maximize không đè lên dock</small></span><div class="sw" data-cfg="reserve"></div></div>
+ <div class="tg"><span>Tự chạy cùng Windows<small>Dock thay taskbar ngay khi đăng nhập</small></span><div class="sw" id="swAuto"></div></div>
+ <div class="row2"><button class="btn" id="wpPick">Đổi hình nền Windows…</button><button class="btn danger" id="quit">Thoát & trả lại taskbar</button></div>
+
+ <h3>Kiểu kính</h3><div class="styles" id="styles"></div>
+ <div class="sl"><span>Độ phủ màu</span><input type="range" id="sA" min="0" max="60" value="14"><b id="vA"></b></div>
+ <div class="sl"><span>Viền sáng</span><input type="range" id="sEdge" min="0" max="100" value="45"><b id="vEdge"></b></div>
+ <div class="tg"><span>Theo chế độ Sáng/Tối của Windows<small>Chữ và màu kính tự đổi theo</small></span><div class="sw" data-cfg="autoContrast"></div></div>
+ <div class="tg"><span>Tiết kiệm RAM / GPU<small>Tắt hiệu ứng chuyển động</small></span><div class="sw" data-cfg="eco"></div></div>
+
+ <h3>Vị trí & bố cục</h3>
+ <div class="seg" id="segPos"><button data-v="bottom" class="on">Dưới</button><button data-v="top">Trên</button></div>
+ <div class="seg" id="segLay" style="margin-top:8px"><button data-v="pill" class="on">Viên thuốc</button><button data-v="full">Toàn chiều rộng</button></div>
+ <div class="tg"><span>Thu gọn<small>Chỉ hiện số liệu, ẩn dòng nhãn</small></span><div class="sw" data-cfg="compact"></div></div>
+ <div class="tg"><span>Ẩn widget theo ngữ cảnh<small>VD: Giờ ngủ chỉ hiện buổi tối</small></span><div class="sw" data-cfg="ctx"></div></div>
+
+ <h3 id="secData">Kết nối dữ liệu</h3>
+ <div class="mini2">Mọi khóa được mã hóa bằng Windows (DPAPI), chỉ gửi đúng tới máy chủ của dịch vụ đó và không đọc lại được từ giao diện.</div>
+ <div class="dsrc"><b>Claude</b><span class="st" id="st-claude"></span><div class="hp">Tự đọc log Claude Code trên máy này (không cần khóa). Không gồm claude.ai/app. Mốc 100% của vòng tròn = block 5 giờ nhiều token nhất trước đây (“kỷ lục cũ”), hoặc số bạn tự đặt:</div>
+  <div class="r"><input class="inp" data-cfg="claudeLimit" type="number" min="0" step="10000" placeholder="Giới hạn token / block 5 giờ (tuỳ chọn)"></div>
+  <div class="hp" style="margin-top:8px"><b>% hạn mức THẬT (gói Pro/Max/Ultra):</b> Claude Code tự báo % đã dùng và giờ reset (5 giờ, 7 ngày) qua “statusLine”. Nút dưới ghi một mục <i>statusLine</i> vào <i>~/.claude/settings.json</i> (có sao lưu <i>.aurora-bak</i>; nếu bạn đã có statusLine thì vẫn chạy tiếp; gỡ là khôi phục).</div>
+  <div class="mini2" id="st-chook"></div>
+  <div class="r"><button class="btn" id="ch-install">Cài hook Claude Code</button><button class="btn" id="ch-remove">Gỡ hook</button></div></div>
+ <div class="dsrc"><b>GitHub</b><span class="st" id="st-github"></span><div class="hp">Personal access token (classic: <i>repo</i>, hoặc fine-grained: đọc Pull requests + Issues).</div>
+  <div class="r"><input class="inp" id="in-github" type="password" placeholder="ghp_…" autocomplete="off"><button class="btn" data-save="github">Lưu</button><button class="btn" data-del="github">Xóa</button></div></div>
+ <div class="dsrc"><b>Stripe</b><span class="st" id="st-stripe"></span><div class="hp">Restricted key chỉ quyền <i>đọc</i> Charges (rk_live_… hoặc rk_test_…).</div>
+  <div class="r"><input class="inp" id="in-stripe" type="password" placeholder="rk_live_…" autocomplete="off"><button class="btn" data-save="stripe">Lưu</button><button class="btn" data-del="stripe">Xóa</button></div></div>
+ <div class="dsrc"><b>Lịch (ICS)</b><span class="st" id="st-calendar"></span><div class="hp">Google Calendar → Cài đặt lịch → “Địa chỉ bí mật ở định dạng iCal”. Outlook/Apple cũng có link ICS.</div>
+  <div class="r"><input class="inp" id="in-calendar" type="password" placeholder="https://calendar.google.com/…/basic.ics" autocomplete="off"><button class="btn" data-save="calendar">Lưu</button><button class="btn" data-del="calendar">Xóa</button></div></div>
+ <div class="dsrc"><b>Thời tiết</b><span class="st" id="st-city"></span><div class="hp">Tên thành phố (dùng Open-Meteo, miễn phí, không cần khóa).</div>
+  <div class="r"><input class="inp" data-cfg="city" placeholder="VD: Ho Chi Minh City"></div></div>
+ <div class="mini2">Chưa hỗ trợ vì không có API dùng cá nhân: ChatGPT/Gemini/Cursor/Grok (mức dùng gói), Polar/Shopify/Gumroad/Paddle. Mình không hiển thị số giả cho các mục này.</div>
+
+ <h3 id="secNotif">Thông báo → bong bóng chat</h3>
+ <div class="dsrc"><b>Thông báo của Windows</b><span class="st" id="st-notif"></span>
+  <div class="hp">Mọi app (Messenger/Instagram mở trong Chrome-Edge, Lark, Zalo, Telegram…) đều gửi thông báo qua Windows. Aurora Dock đọc các thông báo đang nằm trong trung tâm thông báo và hiện tin chưa xem thành bong bóng. Chat bạn đã tắt thông báo thì app không gửi nên sẽ không hiện. Chỉ các app được bật bên dưới mới hiện bong bóng (mặc định bật các app nhắn tin quen thuộc). Nội dung chỉ đọc trên máy, không gửi đi đâu. Windows phải bật thông báo; bạn có thể tắt “banner” từng app (giữ “hiện trong trung tâm thông báo”) để bong bóng thay cho banner.</div>
+  <div id="nlist"></div></div>
+
+ <h3 id="secLark">Lark · @mention thành bong bóng chat</h3>
+ <div class="dsrc"><b>Kết nối Lark</b><span class="st" id="st-lark"></span>
+  <div class="hp">Cần một “ứng dụng tự tạo” trên Lark Developer (miễn phí). Các bước: ① vào open.larksuite.com/app → Create custom app. ② Security settings → Redirect URLs: thêm đúng địa chỉ bên dưới. ③ Permissions: bật quyền cho user token <i>search:message</i>, <i>im:message:readonly</i>, <i>offline_access</i> (thêm <i>im:chat:readonly</i> + <i>contact:user.base:readonly</i> để hiện tên nhóm/người gửi, rồi thêm vào ô Scopes). ④ Publish phiên bản (quản trị Lark có thể phải duyệt). ⑤ Dán App ID + Secret rồi bấm Đăng nhập.</div>
+  <div class="seg" id="segLk"><button data-v="lark" class="on">Lark (larksuite.com)</button><button data-v="feishu">Feishu (feishu.cn)</button></div>
+  <div class="r"><input class="inp" id="lk-id" placeholder="App ID (cli_…)" autocomplete="off"></div>
+  <div class="r"><input class="inp" id="lk-secret" type="password" placeholder="App Secret" autocomplete="off"></div>
+  <div class="r"><input class="inp" id="lk-scopes" placeholder="Scopes" autocomplete="off"></div>
+  <div class="r"><input class="inp" id="lk-redirect" readonly title="Dán đúng địa chỉ này vào Redirect URLs của app"></div>
+  <div class="r"><button class="btn" id="lk-save">Lưu</button><button class="btn" id="lk-login">Đăng nhập Lark</button><button class="btn" id="lk-logout">Đăng xuất</button></div></div>
+
+ <h3 id="secSd">Shift Desk · Break</h3>
+ <div class="dsrc"><b>Kết nối Shift Desk</b><span class="st" id="st-sd"></span>
+  <div class="hp">Dock mở Shift Desk trong một cửa sổ ẩn riêng, đọc trạng thái break (giờ VN) và bấm đúng nút “Bắt đầu nghỉ / Kết thúc nghỉ”. Bạn đăng nhập Google công ty MỘT lần (phiên được lưu mã hóa trên máy, mật khẩu không đi đâu khác). Hãy hỏi IT/quản lý xem công ty có cho phép tự động hóa này không.</div>
+  <div class="r"><input class="inp" data-cfg="sdUrl" placeholder="https://script.google.com/a/…/macros/s/…/exec" autocomplete="off"></div>
+  <div class="r"><button class="btn" id="sd-login">Mở Shift Desk (đăng nhập)</button><button class="btn" id="sd-hide">Ẩn cửa sổ</button><button class="btn" id="sd-read">Đọc ngay</button><button class="btn" id="sd-diag">Sao chép chẩn đoán</button></div>
+  <div class="tg" style="margin-top:8px"><span>Tự kết thúc nghỉ<small>Bấm “Kết thúc nghỉ” trước giờ kế hoạch. Luôn có đếm ngược + nút Hủy. TẮT mặc định.</small></span><div class="sw" data-cfg="sdAuto"></div></div>
+  <div class="sl"><span>Trước giờ kết thúc (phút)</span><input class="inp" type="number" min="0" max="30" data-cfg="sdLead"></div>
+  <div class="mini2">“Bắt đầu nghỉ” vẫn do bạn bấm (trên dock hoặc trên Shift Desk).</div></div>
+
+ <h3>Chấm công</h3>
+ <div class="mini2" id="lkMode"></div>
+ <div class="mini2" style="margin-top:4px">Mọi lần bấm luôn được ghi vào <b>timesheet trên máy</b> (%APPDATA%\AuroraDock\timesheet.jsonl). Nếu điền URL bên dưới, app còn gửi tới hệ thống chấm công của bạn (xem bridge\Code.gs).</div>
+ <input class="inp" data-cfg="url" id="cfgUrl" placeholder="URL Web App (…/exec) — tuỳ chọn" style="margin-top:8px" autocomplete="off">
+ <input class="inp" data-cfg="token" id="cfgToken" type="password" placeholder="Token bí mật" style="margin-top:6px" autocomplete="off">
+ <div class="row2"><button class="btn" id="lkBtn">Lưu & kiểm tra</button><button class="btn" id="lkOff">Chỉ ghi trên máy</button><span id="lkStat" class="mini2"></span></div>
+ <div class="sl"><span>Cập nhật lịch (giây)</span><input class="inp" type="number" min="15" max="600" data-cfg="pollSched"></div>
+ <div class="sl"><span>Đối chiếu ca (giây)</span><input class="inp" type="number" min="15" max="600" data-cfg="pollState"></div>
+
+ <h3>Ca làm & Break</h3>
+ <div class="tg"><span>Tự bắt đầu ca<small>Trước giờ vào ca</small></span><div class="sw" data-cfg="autoStart"></div></div>
+ <div class="sl"><span>Trước (phút)</span><input class="inp" type="number" min="0" max="60" data-cfg="leadStart"></div>
+ <div class="sl"><span>Quá giờ tối đa (phút)</span><input class="inp" type="number" min="0" max="240" data-cfg="graceMin"></div>
+ <div class="tg"><span>Tự kết thúc break<small>Trước giờ quy định</small></span><div class="sw" data-cfg="autoBrk"></div></div>
+ <div class="sl"><span>Trước (phút)</span><input class="inp" type="number" min="0" max="30" data-cfg="leadBrk"></div>
+ <div class="sl"><span>Đếm ngược để Hủy (giây)</span><input class="inp" type="number" min="3" max="60" data-cfg="cdSec"></div>
+ <div class="sl"><span>Giờ vào ca</span><input class="inp" type="time" id="tStart"></div>
+ <div class="sl"><span>Break từ</span><input class="inp" type="time" id="tBF"></div>
+ <div class="sl"><span>Break đến</span><input class="inp" type="time" id="tBT"></div>
+ <div class="mini2" id="schedStat"></div>
+
+ <h3>Giờ ngủ tự động</h3>
+ <div class="tg"><span>Tự bắt đầu / kết thúc giờ ngủ<small>Theo khung giờ bên dưới</small></span><div class="sw" data-cfg="slAuto"></div></div>
+ <div class="sl"><span>Đi ngủ</span><input class="inp" type="time" data-cfg="bed"></div>
+ <div class="sl"><span>Thức dậy</span><input class="inp" type="time" data-cfg="wake"></div>
+
+ <h3>Nhật ký hoạt động</h3><div class="log" id="logv"></div>
+ <div class="row2"><button class="btn" id="logCopy">Sao chép</button><button class="btn" id="logClear">Xóa</button></div>
+
+ <h3>Widget</h3><div id="wlist"></div>
+</div>
+
+<script>
+/* Luôn tải bản script mới nhất: WebView lưu đệm file tĩnh nên sau khi cập nhật app có thể chạy lẫn code cũ-mới. Thứ tự tải giữ nguyên. */
+(function(){var v=Date.now();['core','shift','widgets','bubbles','shiftdesk','ui'].forEach(function(n){document.write('<script src="'+n+'.js?v='+v+'"><\/script>')})})();
+</script>
+</body>
+</html>
