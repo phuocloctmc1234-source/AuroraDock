@@ -23,11 +23,15 @@ Copy-Item -Path (Join-Path $root 'app') -Destination $appDst -Recurse -Force
 $oldIndex = Join-Path $dst 'index.html'          # ban 1.0 (Edge) de file o day
 if (Test-Path $oldIndex) { Remove-Item $oldIndex -Force }
 
+# 3b) Bo dau "tai tu Internet" (Mark of the Web) de Windows khong chan/canh bao khi chay
+Get-ChildItem $dst -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+
 # 4) Shortcut (ghi de shortcut cu cua ban Edge neu co)
 function New-Lnk($path) {
   $ws = New-Object -ComObject WScript.Shell
   $l = $ws.CreateShortcut($path)
   $l.TargetPath = $exe
+  $l.Arguments = ''            # xoa tham so cu (ban 1.0 chay bang Edge: --app=... --window-size=...)
   $l.WorkingDirectory = $dst
   $l.IconLocation = "$exe,0"
   $l.Description = 'Aurora Dock'
