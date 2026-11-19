@@ -1,4 +1,5 @@
 # Aurora Dock - cai dat (khong can quyen Admin): bien dich host, chep app, tao shortcut.
+param([switch]$Silent, [string]$Version = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $dst = Join-Path $env:LOCALAPPDATA 'AuroraDock'
@@ -42,7 +43,11 @@ New-Lnk (Join-Path ([Environment]::GetFolderPath('Programs')) 'Aurora Dock.lnk')
 $oldStartup = Join-Path ([Environment]::GetFolderPath('Startup')) 'Aurora Dock.lnk'
 if (Test-Path $oldStartup) { Remove-Item $oldStartup -Force }   # ban cu tu chay bang Edge
 
-$a = Read-Host 'Tu khoi dong cung Windows? (y/n)'
+# 5) Ghi phien ban (commit) de ung dung biet khi nao co ban moi
+if (-not $Version -and (Test-Path (Join-Path $root '.git'))) { try { $Version = (& git -C $root rev-parse HEAD).Trim() } catch { } }
+if ($Version) { Set-Content -Path (Join-Path $dst 'version.txt') -Value $Version -Encoding ascii }
+
+if ($Silent) { $a = 'n' } else { $a = Read-Host 'Tu khoi dong cung Windows? (y/n)' }
 if ($a -eq 'y') {
   Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'AuroraDock' -Value "`"$exe`""
 }

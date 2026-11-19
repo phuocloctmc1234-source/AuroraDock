@@ -218,11 +218,26 @@ namespace Aurora
             menu.Items.Add(trayStatus); menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Mở Cài đặt", null, delegate { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "openPanel" } })); });
             menu.Items.Add("Khởi động lại", null, delegate { Relaunch(); });
-            menu.Items.Add("Thoát và trả lại taskbar", null, delegate { Quit(); });
+            menu.Items.Add("Kiểm tra cập nhật", null, delegate { CheckUpdate(true); });
+            menu.Items.Add("Exit — Thoát và trả lại taskbar", null, delegate { Quit(); });
             tray = new NotifyIcon { ContextMenuStrip = menu, Visible = true };
             var pin = new System.Windows.Forms.Timer { Interval = 2500 }; pin.Tick += delegate { pin.Stop(); pin.Dispose(); PromoteTray(); }; pin.Start();
             tray.DoubleClick += delegate { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "openPanel" } })); };
             SetTray("busy", "Aurora Dock — đang khởi động");
+            var upd = new System.Windows.Forms.Timer { Interval = 25000 };   // kiem tra ban dau sau 25 giay, roi moi 30 phut
+            upd.Tick += delegate { upd.Interval = 30 * 60 * 1000; CheckUpdate(false); }; upd.Start();
+        }
+        bool updating, updNotified;
+        void CheckUpdate(bool manual)
+        {
+            if (updating) return;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                var r = Updater.Check();
+                if (r == null) { if (manual) Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "updateNone" } })); return; }
+                r["ev"] = "update"; Post(J.S.Serialize(r));
+                if (!updNotified || manual) { updNotified = true; try { BeginInvoke(new Action(delegate { if (tray != null) tray.ShowBalloonTip(6000, "Aurora Dock có bản cập nhật", Convert.ToString(r["msg"]), ToolTipIcon.Info); })); } catch { } }
+            });
         }
         // Windows 11 cat bieu tuong moi vao muc an: ghim RIENG muc cua Aurora ra khay chinh de nhin thay (giong bam "Hien thi bieu tuong")
         static void PromoteTray()
@@ -323,6 +338,9 @@ namespace Aurora
                 case "region": return OnUi<object>(delegate { SetRegion(a.ContainsKey("rects") ? a["rects"] as System.Collections.IEnumerable : null); return true; });
                 case "interactive": return OnUi<object>(delegate { SetInteractive(J.Bool(a, "on", false)); return true; });
                 case "wallpaper": return OnUi<object>(delegate { return PickWallpaper(); });
+                case "updateApply":
+                    if (!Updater.Start()) throw new Exception("Khong cap nhat duoc (ban chay thu, hoac chua kiem tra)");
+                    updating = true; BeginInvoke(new Action(Quit)); return true;
                 case "quit": BeginInvoke(new Action(Quit)); return true;
                 default: throw new Exception("Lenh khong biet: " + op);
             }

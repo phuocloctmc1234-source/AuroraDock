@@ -24,7 +24,8 @@ function openPop(id,fn,anchor){if(POP&&POP.id===id){closePop();return}
  track.querySelectorAll('.w').forEach(x=>x.classList.toggle('act',!!x.querySelector(sel)||x.matches(sel)));
  placePop();pop.classList.add('show');requestAnimationFrame(placePop)}
 function closePop(){POP=null;pop.classList.remove('show');track.querySelectorAll('.w').forEach(x=>x.classList.remove('act'))}
-document.addEventListener('click',e=>{if(!e.target.closest('.w')&&!e.target.closest('#pop'))closePop()});
+document.addEventListener('click',e=>{if(!e.target.closest('.w')&&!e.target.closest('#pop'))closePop();
+ if(panel.classList.contains('show')&&!e.target.closest('#panel')&&!e.target.closest('#gear'))closePanel()});
 pop.addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(a){const f=ACT[a.dataset.act];if(f)f(a.dataset.arg);tick();return}
  const o=e.target.closest('[data-open]');if(o)host('launch',{target:o.dataset.open}).catch(()=>{})});
 pop.addEventListener('keydown',e=>{if(e.target.id==='todoIn'&&e.key==='Enter'&&e.target.value.trim()){CFG.todos.push({t:e.target.value.trim(),d:0});saveCfg();e.target.value='';tick()}});
@@ -54,7 +55,7 @@ function apply(st,fromPreset){const d=dock.style;if(fromPreset){CFG.sliders=null
  const e=effStyle(st);let a=$('#sA').value/100;const edge=+$('#sEdge').value;if(e!==st)a=Math.max(a,e.a);
  d.setProperty('--a',a);d.setProperty('--rgb',e.rgb);d.setProperty('--fg',e.fg);d.setProperty('--ba',edge/100);
  const R=document.documentElement.style;R.setProperty('--rgb',e.rgb);R.setProperty('--a',Math.max(a,.1));R.setProperty('--fg',e.fg);
- [pop,panel,$('#toasts'),$('#cd')].forEach(x=>x.style.setProperty('--fg',e.fg));
+ [pop,panel,$('#toasts'),$('#cd'),$('#upd')].forEach(x=>x.style.setProperty('--fg',e.fg));
  $('#vA').textContent=Math.round(a*100)+'%';$('#vEdge').textContent=edge;
  const [r,g,b]=e.rgb.split(',').map(Number),abgr=(((0x3a<<24)|(b<<16)|(g<<8)|r)>>>0);if(abgr!==lastGlass){lastGlass=abgr;fire('glass',{c:abgr})}
  if(!fromPreset)CFG.sliders={a:$('#sA').value/100,edge};saveCfg()}
