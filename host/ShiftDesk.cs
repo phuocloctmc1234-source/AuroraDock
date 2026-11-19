@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,7 +20,7 @@ namespace Aurora
         public bool allowClose, quiet = true;
         public SdForm()
         {
-            Text = "Shift Desk â€” Aurora Dock"; Width = 1100; Height = 820; StartPosition = FormStartPosition.Manual; ShowInTaskbar = false;
+            Text = "Shift Desk - Aurora Dock"; Width = 1100; Height = 820; StartPosition = FormStartPosition.Manual; ShowInTaskbar = false;
             wv.Dock = DockStyle.Fill; Controls.Add(wv);
         }
         protected override bool ShowWithoutActivation { get { return quiet; } }
@@ -162,16 +163,33 @@ namespace Aurora
             lock (gate)
             {
                 string url = J.Str(a, "url"), what = J.Str(a, "what"), marker = J.Str(a, "marker") ?? "Giờ nghỉ của bạn|Đợt nghỉ tiếp theo|Bắt đầu ca";
-                string re = what == "startBreak" ? "^\\s*báº¯t Ä‘áº§u nghá»‰\\s*$" : what == "endBreak" ? "^\\s*káº¿t thÃºc nghá»‰\\s*$" : null;
+                // mau tim nut dung ma ky tu (char) de khong phu thuoc bang ma cua file
+                string reStart = "^\\s*b" + (char)0x1EAF + "t " + (char)0x111 + (char)0x1EA7 + "u ngh" + (char)0x1EC9 + "\\s*$";
+                string reEnd = "^\\s*k" + (char)0x1EBF + "t th" + (char)0xFA + "c ngh" + (char)0x1EC9 + "\\s*$";
+                string re = what == "startBreak" ? reStart : what == "endBreak" ? reEnd : null;
                 if (re == null) throw new Exception("Hanh dong khong ho tro");
                 Ensure(url); Wake();
                 try
                 {
                 var s = Snap(marker);
                 if (!s.Found) throw new Exception("Khong thay trang Shift Desk (can dang nhap hoac chua tai xong)");
-                string js = "(function(re){var els=[].slice.call(document.querySelectorAll('button,[role=button],input[type=button],input[type=submit],a'));for(var i=0;i<els.length;i++){var e=els[i],tx=(e.innerText||e.value||'').trim();if(new RegExp(re,'i').test(tx)&&!e.disabled&&e.offsetParent!==null){e.click();return JSON.stringify({clicked:true,text:tx})}}return JSON.stringify({clicked:false})})(" + J.S.Serialize(re) + ")";
+                bool dry = J.Bool(a, "dry", false);
+                // tim phan tu: uu tien button/a/role=button; neu khong co thi tim phan tu bat ky co chu khop va co the bam (onclick / cursor:pointer / tabindex)
+                string js = "(function(re,dry){var rx=new RegExp(re,'i');var sel='button,[role=button],input[type=button],input[type=submit],a';var els=[].slice.call(document.querySelectorAll(sel));var hit=null;"
+                    + "function ok(e){var tx=(e.innerText||e.value||'').trim();return rx.test(tx)&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&(e.offsetParent!==null||getComputedStyle(e).position==='fixed')}"
+                    + "for(var i=0;i<els.length&&!hit;i++)if(ok(els[i]))hit=els[i];"
+                    + "if(!hit){var all=[].slice.call(document.querySelectorAll('*'));for(var j=0;j<all.length&&!hit;j++){var e=all[j];if(e.children.length<=2&&ok(e)){var c=e;while(c&&c!==document.body){if(c.onclick||c.tagName==='BUTTON'||c.tagName==='A'||c.getAttribute('role')==='button'||c.getAttribute('tabindex')!==null||getComputedStyle(c).cursor==='pointer'){hit=c;break}c=c.parentElement}}}}"
+                    + "if(hit){var d={tag:hit.tagName,cls:String(hit.className||'').slice(0,40),text:(hit.innerText||hit.value||'').trim().slice(0,40)};if(dry)return JSON.stringify({clicked:false,found:true,dry:true,el:d});"
+                    + "hit.scrollIntoView({block:'center'});['pointerdown','mousedown','pointerup','mouseup'].forEach(function(t){hit.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true,view:window}))});hit.click();return JSON.stringify({clicked:true,text:d.text,el:d})}"
+                    + "var cands=[];[].slice.call(document.querySelectorAll('*')).forEach(function(e){var t=(e.innerText||e.value||'').trim();if(e.children.length<=2&&/ngh\\u1ec9/i.test(t)&&t.length<40)cands.push(e.tagName+'|dis='+(!!e.disabled)+'|aria='+e.getAttribute('aria-disabled')+'|rx='+rx.test(t)+'|op='+(e.offsetParent!==null)+'|pos='+getComputedStyle(e).position+'|'+t)});"
+                    + "return JSON.stringify({clicked:false,cands:cands.slice(0,8)})})(" + J.S.Serialize(re) + "," + (dry ? "true" : "false") + ")";
                 var o = J.S.Deserialize<Dictionary<string, object>>(Exec(s.Frame, js));
-                if (!J.Bool(o, "clicked", false)) throw new Exception("Khong thay nut " + (what == "startBreak" ? "'Bat dau nghi'" : "'Ket thuc nghi'") + " tren trang (trang thai co the da doi)");
+                if (dry) return o;
+                if (!J.Bool(o, "clicked", false))
+                {
+                    string cands = o.ContainsKey("cands") ? string.Join(" ; ", ((System.Collections.IEnumerable)o["cands"]).Cast<object>().Select(x => Convert.ToString(x)).ToArray()) : "";
+                    throw new Exception("Khong thay nut " + (what == "startBreak" ? "'Bat dau nghi'" : "'Ket thuc nghi'") + " tren trang (trang thai co the da doi). Phan tu co chu 'nghi': " + cands);
+                }
                 lastLoad = DateTime.MinValue;   // lan doc tiep theo tai lai de thay trang thai moi
                 return new Dictionary<string, object> { { "clicked", true }, { "text", J.Str(o, "text") } };
                 }
