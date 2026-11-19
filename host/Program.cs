@@ -107,7 +107,7 @@ namespace Aurora
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            PositionBar();
+            PositionBar(); InitTray();
             ScreenTime.Start(Handle);
             fgTimer = new System.Windows.Forms.Timer { Interval = 500 };
             fgTimer.Tick += delegate
@@ -133,10 +133,11 @@ namespace Aurora
                 {
                     bool busy = false;
                     try { Env = await CoreWebView2Environment.CreateAsync(null, ud, opts); await wv.EnsureCoreWebView2Async(Env); break; }
-                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 15 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); }
+                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 40 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); }
                     if (busy)
                     {
-                        await System.Threading.Tasks.Task.Delay(2500);
+                        SetTray("busy", "Aurora Dock — đang khởi động (WebView đang bận, thử lại " + attempt + ")");
+                        await System.Threading.Tasks.Task.Delay(1000);
                         // dieu khien WebView2 da hong khong the khoi tao lai: phai tao dieu khien MOI cho lan thu sau
                         try { Controls.Remove(wv); wv.Dispose(); } catch { }
                         wv = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.Transparent }; Controls.Add(wv);
@@ -155,11 +156,12 @@ namespace Aurora
                 c.NavigationStarting += delegate(object s, CoreWebView2NavigationStartingEventArgs a) { if (!a.Uri.StartsWith("https://aurora.local/")) a.Cancel = true; };
                 c.NewWindowRequested += delegate(object s, CoreWebView2NewWindowRequestedEventArgs a) { a.Handled = true; };
                 c.WebMessageReceived += OnMsg;
+                c.NavigationCompleted += delegate(object s, CoreWebView2NavigationCompletedEventArgs a) { if (c.Source.StartsWith("https://aurora.local/")) SetTray(a.IsSuccess ? "ok" : "err", a.IsSuccess ? "Aurora Dock — đang chạy" : "Aurora Dock — lỗi tải giao diện"); };
                 c.Navigate("https://aurora.local/index.html?host=1&t=" + App.NowMs() + (noTaskbar ? "&notb=1" : ""));
             }
             catch (Exception ex)
             {
-                App.Log("boot: " + ex);
+                App.Log("boot: " + ex); SetTray("err", "Aurora Dock — LỖI khởi động: " + ex.Message);
                 MessageBox.Show("Khong khoi dong duoc giao dien (WebView2).\r\n\r\n" + ex.Message, "Aurora Dock");
                 Quit();
             }
@@ -191,6 +193,72 @@ namespace Aurora
         void Post(string json)
         {
             try { BeginInvoke(new Action(delegate { try { wv.CoreWebView2.PostWebMessageAsString(json); } catch { } })); } catch { }
+        }
+        // ---------- Bieu tuong khay he thong: cho biet app dang chay hay chua (vang = dang khoi dong, xanh = chay, do = loi) ----------
+        NotifyIcon tray; ToolStripMenuItem trayStatus; string trayState = "";
+        static Icon MakeIcon(Color c)
+        {
+            using (var bmp = new Bitmap(16, 16))
+            {
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using (var b = new SolidBrush(Color.FromArgb(235, 40, 44, 70))) g.FillRectangle(b, 0, 4, 16, 8);          // "dock"
+                    using (var b = new SolidBrush(Color.FromArgb(200, 255, 255, 255))) g.FillRectangle(b, 1, 5, 14, 1);
+                    using (var b = new SolidBrush(c)) g.FillEllipse(b, 9, 0, 7, 7);                                          // den trang thai
+                    using (var p = new Pen(Color.White, 1)) g.DrawEllipse(p, 9, 0, 6, 6);
+                }
+                return Icon.FromHandle(bmp.GetHicon());
+            }
+        }
+        void InitTray()
+        {
+            trayStatus = new ToolStripMenuItem("Aurora Dock — đang khởi động") { Enabled = false };
+            var menu = new ContextMenuStrip();
+            menu.Items.Add(trayStatus); menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Mở Cài đặt", null, delegate { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "openPanel" } })); });
+            menu.Items.Add("Khởi động lại", null, delegate { Relaunch(); });
+            menu.Items.Add("Thoát và trả lại taskbar", null, delegate { Quit(); });
+            tray = new NotifyIcon { ContextMenuStrip = menu, Visible = true };
+            var pin = new System.Windows.Forms.Timer { Interval = 2500 }; pin.Tick += delegate { pin.Stop(); pin.Dispose(); PromoteTray(); }; pin.Start();
+            tray.DoubleClick += delegate { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "openPanel" } })); };
+            SetTray("busy", "Aurora Dock — đang khởi động");
+        }
+        // Windows 11 cat bieu tuong moi vao muc an: ghim RIENG muc cua Aurora ra khay chinh de nhin thay (giong bam "Hien thi bieu tuong")
+        static void PromoteTray()
+        {
+            try
+            {
+                string me = Application.ExecutablePath;
+                using (var root = Registry.CurrentUser.OpenSubKey(@"Control Panel\NotifyIconSettings", true))
+                {
+                    if (root == null) return;
+                    foreach (var name in root.GetSubKeyNames())
+                        using (var k = root.OpenSubKey(name, true))
+                        {
+                            object p = k == null ? null : k.GetValue("ExecutablePath");
+                            if (p != null && string.Equals(Convert.ToString(p), me, StringComparison.OrdinalIgnoreCase) && !(k.GetValue("IsPromoted") is int && (int)k.GetValue("IsPromoted") == 1))
+                                k.SetValue("IsPromoted", 1, RegistryValueKind.DWord);
+                        }
+                }
+            }
+            catch (Exception e) { App.Log("promote tray: " + e.Message); }
+        }
+        public void SetTray(string state, string tip)
+        {
+            if (tray == null) return;
+            Action a = delegate
+            {
+                if (tray == null) return;
+                if (trayState != state)
+                {
+                    trayState = state;
+                    var old = tray.Icon; tray.Icon = MakeIcon(state == "ok" ? Color.FromArgb(52, 197, 138) : state == "err" ? Color.FromArgb(255, 90, 90) : Color.FromArgb(255, 190, 40));
+                    if (old != null) old.Dispose();
+                }
+                tray.Text = tip.Length > 60 ? tip.Substring(0, 60) : tip; if (trayStatus != null) trayStatus.Text = tip;
+            };
+            if (InvokeRequired) BeginInvoke(a); else a();
         }
         public static Host Instance;
         public static CoreWebView2Environment Env;     // dung chung cho cua so Shift Desk: khong tao them bo tien trinh WebView2 thu hai
@@ -402,6 +470,7 @@ namespace Aurora
             try { Taskbar.Restore(); } catch { }
             try { ScreenTime.Flush(); } catch { }
             try { ShiftDesk.Shutdown(); } catch { }
+            try { if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; } } catch { }
             Application.Exit();
         }
     }

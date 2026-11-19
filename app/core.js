@@ -27,7 +27,7 @@ function host(op,a,ms){return new Promise((res,rej)=>{
  _p.set(id,{res,rej,t});chrome.webview.postMessage(JSON.stringify({id,op,a:a||{}}))})}
 function fire(op,a){if(HOSTED)chrome.webview.postMessage(JSON.stringify({id:0,op,a:a||{}}))}
 /* host chủ động báo: vùng làm việc đã bị chiếm (VD taskbar Windows) để dock nằm trên đó, không đè lên */
-function onHostEvent(m){if(m.ev==='inset'){const R=document.documentElement.style;R.setProperty('--it',(m.top||0)+'px');R.setProperty('--ib',(m.bottom||0)+'px');kick(1200)}}
+function onHostEvent(m){if(m.ev==='openPanel'){openPanel();return}if(m.ev==='inset'){const R=document.documentElement.style;R.setProperty('--it',(m.top||0)+'px');R.setProperty('--ib',(m.bottom||0)+'px');kick(1200)}}
 if(HOSTED)chrome.webview.addEventListener('message',e=>{let m=e.data;if(typeof m==='string'){try{m=JSON.parse(m)}catch(_){return}}
  if(m.ev){onHostEvent(m);return}
  const p=_p.get(m.id);if(!p)return;_p.delete(m.id);clearTimeout(p.t);m.ok?p.res(m.d):p.rej(new Error(m.e||'lỗi'))});
