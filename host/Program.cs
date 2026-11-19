@@ -1,4 +1,4 @@
-// Aurora Dock host - cua so chinh: AppBar + Acrylic + WebView2, quan ly taskbar Windows, dieu phoi lenh tu giao dien.
+﻿// Aurora Dock host - cua so chinh: AppBar + Acrylic + WebView2, quan ly taskbar Windows, dieu phoi lenh tu giao dien.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -124,16 +124,16 @@ namespace Aurora
             try
             {
                 string ud = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AuroraDock", "WebView2");
-                // Cờ giảm RAM (đo trên máy 8GB: Private 327 -> 212 MB, bớt 1 tiến trình): GPU chạy chung tiến trình trình duyệt,
-                // chỉ 1 tiến trình render, và không để Chromium tự coi cửa sổ là "bị che" rồi tính toán lại liên tục.
-                string flags = Environment.GetEnvironmentVariable("AURORA_WV_FLAGS") ?? "--in-process-gpu --renderer-process-limit=1 --disable-features=CalculateNativeWinOcclusion";   // biến môi trường chỉ để đo thử
+                // Cá» giáº£m RAM (Ä‘o trÃªn mÃ¡y 8GB: Private 327 -> 212 MB, bá»›t 1 tiáº¿n trÃ¬nh): GPU cháº¡y chung tiáº¿n trÃ¬nh trÃ¬nh duyá»‡t,
+                // chá»‰ 1 tiáº¿n trÃ¬nh render, vÃ  khÃ´ng Ä‘á»ƒ Chromium tá»± coi cá»­a sá»• lÃ  "bá»‹ che" rá»“i tÃ­nh toÃ¡n láº¡i liÃªn tá»¥c.
+                string flags = Environment.GetEnvironmentVariable("AURORA_WV_FLAGS") ?? "--in-process-gpu --renderer-process-limit=1 --disable-features=CalculateNativeWinOcclusion";   // biáº¿n mÃ´i trÆ°á»ng chá»‰ Ä‘á»ƒ Ä‘o thá»­
                 var opts = new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = flags + (debug ? " --remote-debugging-port=9333" : "") };
                 // mo lai ngay sau khi tat: WebView2 cu co the chua thoat xong va con giu thu muc (0x800700AA) -> thu lai vai lan
                 for (int attempt = 1; ; attempt++)
                 {
                     bool busy = false;
                     try { Env = await CoreWebView2Environment.CreateAsync(null, ud, opts); await wv.EnsureCoreWebView2Async(Env); break; }
-                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 8 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); if (attempt == 1 || attempt == 4) KillOrphanWebViews(); }
+                    catch (System.Runtime.InteropServices.COMException ce) { if (attempt >= 15 || (uint)ce.ErrorCode != 0x800700AA) throw; busy = true; App.Log("webview busy, thu lai " + attempt); }
                     if (busy)
                     {
                         await System.Threading.Tasks.Task.Delay(2500);
@@ -191,24 +191,6 @@ namespace Aurora
         void Post(string json)
         {
             try { BeginInvoke(new Action(delegate { try { wv.CoreWebView2.PostWebMessageAsString(json); } catch { } })); } catch { }
-        }
-        // Host da giu mutex nen khong con ban Aurora nao khac: moi msedgewebview2 dung thu muc du lieu cua Aurora la tien trinh MO COI
-        // (cua lan chay truoc bi tat dot ngot) va dang chan WebView moi (0x800700AA). Chi dong dung nhung tien trinh nay.
-        static void KillOrphanWebViews()
-        {
-            try
-            {
-                int me = Process.GetCurrentProcess().Id;
-                using (var s = new System.Management.ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'msedgewebview2.exe'"))
-                    foreach (System.Management.ManagementObject o in s.Get())
-                    {
-                        string cl = Convert.ToString(o["CommandLine"]) ?? "";
-                        if (cl.IndexOf(@"AuroraDock\WebView2", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                        try { Process.GetProcessById(Convert.ToInt32(o["ProcessId"])).Kill(); } catch { }
-                    }
-                App.Log("da dong WebView mo coi cua Aurora");
-            }
-            catch (Exception e) { App.Log("kill orphan: " + e.Message); }
         }
         public static Host Instance;
         public static CoreWebView2Environment Env;     // dung chung cho cua so Shift Desk: khong tao them bo tien trinh WebView2 thu hai
@@ -485,3 +467,5 @@ namespace Aurora
         }
     }
 }
+
+
