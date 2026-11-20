@@ -34,7 +34,7 @@ async function tsLoad(){DATA.ts=await host('tsList',{since:Date.now()-9*864e5});
 async function localApi(action,p){
  if(action==='act'){const r=await host('tsAppend',{id:p.requestId,name:p.name,at:p.at});return {ok:true,duplicate:!!r.duplicate,applied:true}}
  if(action==='getState')return deriveState(await host('tsList',{since:Date.now()-36*36e5}));
- if(action==='getSchedule'){const m=CFG.man;return {start:m.start||'',brkFrom:m.brkFrom||'',brkTo:m.brkTo||'',ver:[m.start,m.brkFrom,m.brkTo].join('|'),at:Date.now()}}
+ if(action==='getSchedule'){const m=CFG.man,ss=(typeof schedStart==='function')?schedStart():null,st=ss!=null?ss:(m.start||'');return {start:st,brkFrom:m.brkFrom||'',brkTo:m.brkTo||'',ver:[st,m.brkFrom,m.brkTo].join('|'),at:Date.now()}}
  throw new Error('unknown action')}
 async function remoteApi(action,payload){
  const r=await host('http',{url:CFG.url,method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({token:CFG.token,action},payload||{}))},25000);
@@ -86,8 +86,6 @@ let PEND=null;const FIRED=store.get('fired',{});
 const markFired=(k,v)=>{FIRED[k]=v;const keys=Object.keys(FIRED);if(keys.length>60)keys.slice(0,keys.length-60).forEach(x=>delete FIRED[x]);store.set('fired',FIRED)};
 function slWin(){const c=nowMin(),b=hm(CFG.bed),w=hm(CFG.wake);return b>w?(c>=b||c<w):(c>=b&&c<w)}
 function dueInfo(name){const w=S.wk,n=Date.now();
- if(name==='startShift'){if(!CFG.autoStart||!hasSch()||!VALID.startShift())return null;const st=occNear(SCH.start),t=st-CFG.leadStart*6e4;if(n<t)return null;if(n>st+CFG.graceMin*6e4)return {late:true};return {key:dayKey()+'-start-'+SCH.start,over:n-st}}
- if(name==='endBreak'){if(!CFG.autoBrk||!SCH.brkTo||w.phase!=='break'||n-w.brkSince<60000)return null;const e=occAfter(SCH.brkTo,w.brkSince),t=e-CFG.leadBrk*6e4;if(n<t)return null;return {key:w.day+'-'+w.seq+'-endBreak',over:n-e}}
  if(name==='sdEnd')return sdDue();
  if(name==='startSleep'){if(!CFG.slAuto||S.sl.on||S.sl.manualOff||!slWin())return null;return {key:dayKey()+'-sleep-start'}}
  if(name==='endSleep'){if(!CFG.slAuto||!S.sl.on)return null;const e=occAfter(CFG.wake,S.sl.since);if(Date.now()<e)return null;return {key:dayKey()+'-sleep-end',over:Date.now()-e}}
@@ -117,9 +115,8 @@ function evalAuto(){const w=S.wk;
  if(w.phase==='done'&&w.day!==dayKey()){w.phase='idle';saveWk()}
  if(!slWin()&&S.sl.manualOff){S.sl.manualOff=false;saveSl()}
  if(PEND){if(!PEND.force){const d=dueInfo(PEND.name);if(!d||d.late)cancelPend(false,'Lịch/trạng thái đã đổi — hủy '+LABEL[PEND.name].toLowerCase()+' tự động')}return}
- for(const nm of ['sdEnd','startShift','endBreak','startSleep','endSleep']){const d=dueInfo(nm);if(!d)continue;
+ for(const nm of ['sdEnd','startSleep','endSleep']){const d=dueInfo(nm);if(!d)continue;
   if(d.late&&nm==='sdEnd'){const lk=dayKey()+'-sdlate';if(!FIRED[lk]){markFired(lk,1);log(nm,'Nghỉ đã quá giờ kết thúc hơn 60 phút — KHÔNG tự bấm, hãy bấm tay','skip');toast('⚠ Nghỉ đã quá giờ — hãy bấm "Kết thúc nghỉ" thủ công')}continue}
-  if(d.late){const lk=dayKey()+'-late';if(!FIRED[lk]){markFired(lk,1);log(nm,'Đã quá giờ ca hơn '+CFG.graceMin+' phút — KHÔNG tự bắt đầu, hãy bấm thủ công','skip');toast('⚠ Đã quá giờ ca — hãy bấm "Bắt đầu ca" thủ công')}continue}
   if(FIRED[d.key])continue;startPend(nm,d);break}}
 
 /* ---------- lịch ca: từ server (bridge) hoặc do bạn nhập tay ---------- */

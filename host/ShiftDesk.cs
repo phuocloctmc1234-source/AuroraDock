@@ -1,4 +1,4 @@
-﻿// Aurora Dock host - ket noi Shift Desk (Apps Script web app cua cong ty, chi co giao dien, khong co API).
+﻿﻿// Aurora Dock host - ket noi Shift Desk (Apps Script web app cua cong ty, chi co giao dien, khong co API).
 // Cach lam: mo trang trong mot WebView2 RIENG (phien dang nhap cua ban luu ma hoa tren may), doc chu tren trang
 // va bam dung nut "Bat dau nghi" / "Ket thuc nghi" khi duoc yeu cau. Khong luu hay gui mat khau di dau.
 using System;
@@ -192,6 +192,61 @@ namespace Aurora
                 }
                 lastLoad = DateTime.MinValue;   // lan doc tiep theo tai lai de thay trang thai moi
                 return new Dictionary<string, object> { { "clicked", true }, { "text", J.Str(o, "text") } };
+                }
+                finally { Rest(); }
+            }
+        }
+
+        // ---------- Lich lam viec: doc tab "Lich & Doi ca" (bang 14 ngay) trong cua so an ----------
+        const string JS_TAB = "(function(n){var b=[].slice.call(document.querySelectorAll('button')).filter(function(e){return (e.innerText||'').replace(/[0-9]+$/,'').trim()===n})[0];if(b){b.click();return 'ok'}return 'no'})";
+        const string JS_GRID = "(function(){var t=[].slice.call(document.querySelectorAll('table.sw-t')).filter(function(x){return x.offsetParent!==null&&x.rows.length>2})[0];if(!t)return '';" +
+            "var tx=function(c){return c.innerText.replace(/\\s+/g,' ').trim()};var head=[];[].slice.call(t.rows[0].cells).forEach(function(c){var b=c.querySelector('button[data-sw^=\"day:\"]');if(b)head.push({iso:b.getAttribute('data-sw').slice(4),label:tx(c)})});" +
+            "var rows=[].slice.call(t.rows).slice(1).map(function(r){var c=[].slice.call(r.cells).map(tx);return {name:c[0],cells:c.slice(1)}});return JSON.stringify({head:head,rows:rows})})()";
+        const string JS_DAY = "(function(d){var b=document.querySelector('table.sw-t th button[data-sw=\"day:'+d+'\"]');if(b){b.click();return 'ok'}return 'no'})";
+        const string JS_DETAIL = "(function(){var t=document.body.innerText;var m=t.match(/\\n(T[2-7]|CN) \\d{2}\\/\\d{2}\\n/);if(!m)return JSON.stringify({});var k=t.indexOf(m[0]);return JSON.stringify({raw:t.slice(k,k+420)})})()";
+
+        public static object Schedule(Dictionary<string, object> a)
+        {
+            lock (gate)
+            {
+                string url = J.Str(a, "url"); int detailDays = (int)J.Num(a, "detailDays", 2);
+                Ensure(url); Wake();
+                try
+                {
+                    Load(url, 0);
+                    Snapshot s = null;
+                    for (int i = 0; i < 40; i++) { s = Snap("Lịch & Đổi ca"); if (s.Found) break; Thread.Sleep(500); }
+                    string top = Ui<string>(() => form.wv.CoreWebView2.Source);
+                    if (NeedLogin(top)) return new Dictionary<string, object> { { "needLogin", true } };
+                    if (!s.Found) throw new Exception("Khong thay trang Shift Desk");
+                    var fr = s.Frame;
+                    if (Exec(fr, JS_TAB + "('Lịch & Đổi ca')") != "ok") throw new Exception("Khong thay tab 'Lich & Doi ca'");
+                    string grid = "";
+                    for (int i = 0; i < 24; i++) { Thread.Sleep(350); grid = Exec(fr, JS_GRID); if (grid.Length > 20) break; }
+                    if (grid.Length <= 20) throw new Exception("Khong doc duoc bang lich (trang doi giao dien?)");
+                    var res = J.S.Deserialize<Dictionary<string, object>>(grid);
+                    var det = new Dictionary<string, object>();
+                    var heads = res.ContainsKey("head") ? ((System.Collections.IEnumerable)res["head"]).Cast<object>().Select(x => (Dictionary<string, object>)x).ToList() : new List<Dictionary<string, object>>();
+                    // chi tai chi tiet gio cho HOM NAY va ngay lam viec ke tiep (bo qua ngay OFF/chua co ca): tiet kiem 3-6 giay moi ngay
+                    var meRow = res.ContainsKey("rows") ? ((System.Collections.IEnumerable)res["rows"]).Cast<object>().Select(x => (Dictionary<string, object>)x).FirstOrDefault(r => J.Str(r, "name") == "Bạn") : null;
+                    var meCells = meRow != null && meRow.ContainsKey("cells") ? ((System.Collections.IEnumerable)meRow["cells"]).Cast<object>().Select(x => Convert.ToString(x)).ToList() : new List<string>();
+                    for (int i = 0, fetched = 0; i < heads.Count && fetched < detailDays; i++)
+                    {
+                        string cell = i < meCells.Count ? meCells[i] : "";
+                        if (i > 0 && (cell == "OFF" || cell == "–" || cell == "")) continue;
+                        fetched++;
+                        string iso = J.Str(heads[i], "iso");
+                        if (Exec(fr, JS_DAY + "(" + J.S.Serialize(iso) + ")") != "ok") continue;
+                        for (int w = 0; w < 18; w++)   // chi tiet ngay tai tu may chu Apps Script (~1-3 giay): cho toi khi het "Dang tai"
+                        {
+                            Thread.Sleep(400);
+                            try { var d = J.S.Deserialize<Dictionary<string, object>>(Exec(fr, JS_DETAIL)); string raw = d.ContainsKey("raw") ? J.Str(d, "raw") : null; if (raw != null && raw.IndexOf("Đang tải", StringComparison.Ordinal) < 0) { det[iso] = raw; break; } } catch { }
+                        }
+                    }
+                    try { Exec(fr, JS_TAB + "('Break của tôi')"); } catch { }   // tra ve tab mac dinh de lan doc break sau khong bi lech
+                    lastLoad = DateTime.MinValue;
+                    res["details"] = det; res["at"] = App.NowMs(); res["needLogin"] = false;
+                    return res;
                 }
                 finally { Rest(); }
             }

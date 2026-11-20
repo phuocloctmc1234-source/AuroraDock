@@ -20,7 +20,10 @@ const appName=p=>{const i=iconOf(p);return (i&&i.name)||baseName(p)};
 
 /* ---------- nguồn dữ liệu ---------- */
 const pSys=async()=>{const r=await host('sys');DATA.sys=r;hist('cpu',r.cpu);hist('ram',r.ram);if(r.net)hist('net',r.net.down)};
-const pWins=async()=>{DATA.wins=await host('windows')};
+const CHP={},CHPASK={};
+const pWins=async()=>{DATA.wins=await host('windows');chromeProf()};
+async function chromeProf(){const L=(DATA.wins&&DATA.wins.list)||[],hs=L.filter(x=>/chrome\.exe$/i.test(String(x.p||''))&&!(x.h in CHPASK)).map(x=>x.h);if(!hs.length)return;hs.forEach(h=>CHPASK[h]=1);
+ try{const r=await host('chromeProf',{hs},30000);let n=0;for(const k in r){CHP[k]=r[k];n++}if(n)setTimeout(()=>pump('wins'),50);hs.forEach(h=>{if(!(h in CHP))setTimeout(()=>{delete CHPASK[h]},15000)})}catch(e){hs.forEach(h=>delete CHPASK[h])}}
 const pMedia=async()=>{DATA.media=await host('media')};
 const pScr=async()=>{DATA.scr=await host('screentime')};
 const pFiles=async()=>{DATA.files=await host('files')};
@@ -84,7 +87,7 @@ const PROV={
  crate:{every:10,run:async()=>{DATA.crate=await host('claudeRate')||null},always:true},
  git:{every:120,run:pGit,cfg:'github'},stripe:{every:120,run:pStripe,cfg:'stripe'},cal:{every:300,run:pCal,cfg:'calendar'},wea:{every:900,run:pWea,cfg:'city'},ts:{every:60,run:tsLoad,always:true}};
 const PSTATE={};
-function runProviders(force,only){const now=Date.now(),wanted=new Set(W.filter(w=>w.on&&w.prov).map(w=>w.prov));
+function runProviders(force,only){if(window.PAUSED&&!only)return;const now=Date.now(),wanted=new Set(W.filter(w=>w.on&&w.prov).map(w=>w.prov));
  for(const k in PROV){const p=PROV[k];if(only&&only!==k)continue;if(!(p.always||wanted.has(k)))continue;if(p.cfg&&!have(p.cfg))continue;
   const s=PSTATE[k]=PSTATE[k]||{t:0,busy:false},ev=typeof p.every==='function'?p.every():p.every;if(s.busy||(!force&&now-s.t<ev*1000))continue;
   s.busy=true;s.t=now;p.run().then(()=>{ERR[k]='';TSAMP[k]=Date.now()}).catch(e=>{ERR[k]=String(e.message||e)}).finally(()=>{s.busy=false;tick()})}}
@@ -108,10 +111,13 @@ const SEEN={};let seenN=0;
 function groups(){const wins=(DATA.wins&&DATA.wins.list)||[],by=new Map();
  wins.forEach(x=>{const uwp=/ApplicationFrameHost/i.test(x.p),key=uwp?'uwp:'+x.t:String(x.p||'').toLowerCase();let g=by.get(key);if(!g){g={key,path:x.p,wins:[],uwp};by.set(key,g)}g.wins.push(x)});
  const out=[];(CFG.pins||[]).forEach(p=>{const key=String(p).toLowerCase(),g=by.get(key);out.push({key,path:p,pinned:true,wins:g?g.wins:[]});by.delete(key)});
- const rest=[...by.values()];rest.forEach(g=>{if(!(g.key in SEEN))SEEN[g.key]=++seenN});rest.sort((a,b)=>SEEN[a.key]-SEEN[b.key]);return out.concat(rest)}
+ const rest=[...by.values()];rest.forEach(g=>{if(!(g.key in SEEN))SEEN[g.key]=++seenN});rest.sort((a,b)=>SEEN[a.key]-SEEN[b.key]);const all=out.concat(rest),res=[];
+ all.forEach(g=>{if(!(CFG.splitChrome!==false&&/chrome\.exe$/i.test(String(g.path||''))&&g.wins.length>0)){res.push(g);return}
+  g.wins.slice().sort((x,y)=>x.h-y.h).forEach((w,i)=>res.push({key:g.key+'#'+w.h,path:g.path,pinned:g.pinned&&i===0,wins:[w],split:true,label:String(w.t||'').replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g,'').replace(/\s+-\s+Google Chrome.*$/i,'').trim().slice(0,5)}))});
+ return res}
 function tasksHtml(){const fg=DATA.wins?String(DATA.wins.fg):'';
  return `<div class="tasks">${groups().map(g=>{const ic=g.uwp?null:iconOf(g.path),act=g.wins.some(x=>String(x.h)===fg),allMin=g.wins.length&&g.wins.every(x=>x.m),nm=g.uwp?g.wins[0].t:appName(g.path);
-  return `<span class="task ${g.wins.length?'run':''} ${act?'act':''} ${allMin?'min':''}" data-k="${esc(g.key)}" title="${esc(nm)}">${ic&&ic.png?`<img src="data:image/png;base64,${ic.png}">`:`<b>${esc((nm||'?')[0].toUpperCase())}</b>`}${g.wins.length>1?`<em>${g.wins.length}</em>`:''}</span>`}).join('')}</div>`}
+  return `<span class="task ${g.split?'split':''} ${g.wins.length?'run':''} ${act?'act':''} ${allMin?'min':''}" data-k="${esc(g.key)}" title="${esc(g.split?g.wins[0].t:nm)}">${ic&&ic.png?`<img src="data:image/png;base64,${ic.png}">`:`<b>${esc((nm||'?')[0].toUpperCase())}</b>`}${g.split&&g.label?`<i class="lb">${esc(g.label)}</i>`:''}${g.split&&CHP[g.wins[0].h]&&CHP[g.wins[0].h].png?`<img class="av" src="data:image/png;base64,${CHP[g.wins[0].h].png}" title="${esc(CHP[g.wins[0].h].name)}">`:''}${g.wins.length>1?`<em>${g.wins.length}</em>`:''}</span>`}).join('')}</div>`}
 const groupOf=el=>{const t=el.target.closest('.task');return t?{t,g:groups().find(x=>x.key===t.dataset.k)}:null};
 function taskClick(ev){const r=groupOf(ev);if(!r||!r.g)return;const g=r.g;
  if(!g.wins.length){if(g.path)host('launch',{target:g.path}).catch(e=>toast('Không mở được: '+e.message));return}

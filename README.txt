@@ -189,3 +189,12 @@ LƯU Ý CHÍNH SÁCH
   Nó là gì (web trên trình duyệt nào, Lark Attendance, Google Sheet/Form, phần mềm khác)? Có API hoặc
   link webhook không? Nếu chỉ có giao diện web đăng nhập bằng tài khoản công ty thì cách duy nhất là
   điều khiển trình duyệt, dễ vỡ và có thể vi phạm quy định, nên cần hỏi IT trước.
+
+CẬP NHẬT TỰ ĐỘNG, BONG BÓNG CHAT, LARK (2.0+)
+  - Cập nhật: app kiểm tra GitHub (nhánh main) mỗi 30 phút, báo "Có bản cập nhật"; bấm Cập nhật để tải, biên dịch thử, rồi cài (không cài nếu bản mới lỗi biên dịch).
+  - Bong bóng chat: tin Lark (popup riêng của Lark, @mention) và thông báo Windows hiện thành bong bóng; bấm để xem + trả lời nhanh.
+    Mở đúng cuộc chat Lark: ưu tiên API (cần đăng nhập Lark + quyền search:user / im:chat:readonly), nếu không được thì tự thao tác tìm kiếm trong Lark.
+  - Không làm phiền / Ẩn nội dung tin: ⚙ > Thông báo.
+  - Khóa máy hoặc vắng mặt > 10 phút: app tạm dừng lấy dữ liệu nền (tự chạy lại khi bạn quay lại).
+  - Kiểm tra trước khi commit: scripts\check.ps1 (biên dịch host + kiểm tra cú pháp JS).
+  - Nhật ký: %APPDATA%\AuroraDock\host.log (tự xoay vòng, giữ file .old).

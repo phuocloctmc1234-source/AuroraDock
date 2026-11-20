@@ -108,6 +108,9 @@ namespace Aurora
         {
             base.OnShown(e);
             PositionBar(); InitTray();
+            LarkPopup.OnNew = delegate { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "notifNew" } })); }; LarkPopup.OnWarn = delegate(string m) { Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "warn" }, { "msg", m } })); }; LarkPopup.Start(); InitPause();
+            // ban da cai dat: tu dang ky khoi dong cung Windows (tru khi nguoi dung da tat)
+            try { if (Updater.Installed && !File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "autostart.off"))) Autostart(true, true); } catch { }
             ScreenTime.Start(Handle);
             fgTimer = new System.Windows.Forms.Timer { Interval = 500 };
             fgTimer.Tick += delegate
@@ -227,6 +230,26 @@ namespace Aurora
             var upd = new System.Windows.Forms.Timer { Interval = 25000 };   // kiem tra ban dau sau 25 giay, roi moi 30 phut
             upd.Tick += delegate { upd.Interval = 30 * 60 * 1000; CheckUpdate(false); }; upd.Start();
         }
+        // ---------- tam dung lay du lieu khi khoa man hinh / vang mat > 10 phut: tiet kiem CPU, mang, pin ----------
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] struct LII { public uint cb; public uint t; }
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LII p);
+        bool locked, paused;
+        void InitPause()
+        {
+            Microsoft.Win32.SystemEvents.SessionSwitch += delegate(object s, Microsoft.Win32.SessionSwitchEventArgs e)
+            {
+                if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionLock) { locked = true; CheckPause(); }
+                else if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock) { locked = false; CheckPause(); }
+            };
+            var t = new System.Windows.Forms.Timer { Interval = 30000 }; t.Tick += delegate { CheckPause(); }; t.Start();
+        }
+        void CheckPause()
+        {
+            var li = new LII(); li.cb = 8; uint idle = 0; if (GetLastInputInfo(ref li)) idle = (uint)Environment.TickCount - li.t;
+            bool p = locked || idle > 10 * 60 * 1000;
+            if (p == paused) return; paused = p;
+            Post(J.S.Serialize(new Dictionary<string, object> { { "ev", "pause" }, { "on", p } }));
+        }
         bool updating, updNotified;
         void CheckUpdate(bool manual)
         {
@@ -300,6 +323,10 @@ namespace Aurora
                 case "sys": return Sys.Snapshot();
                 case "windows": return new Dictionary<string, object> { { "list", Wins.List(Handle) }, { "fg", lastFg.ToInt64() } };
                 case "icon": return Wins.GetIcon(J.Str(a, "path"));
+                case "trayIcons": return TrayIcons.List();
+                case "trayFlyout": return TrayIcons.Flyout();
+                case "trayAct": return TrayIcons.Act(J.Str(a, "path"), J.Str(a, "act"));
+                case "chromeProf": { var hl = new List<long>(); var arr = a.ContainsKey("hs") ? a["hs"] as System.Collections.IEnumerable : null; if (arr != null) foreach (var x in arr) hl.Add(Convert.ToInt64(x)); return ChromeProf.Get(hl); }
                 case "activate": Wins.Activate(new IntPtr((long)J.Num(a, "h", 0)), true, lastFg); return true;
                 case "close": Wins.Close(new IntPtr((long)J.Num(a, "h", 0))); return true;
                 case "launch": return Launch(J.Str(a, "target"), J.Str(a, "args"));
@@ -314,6 +341,8 @@ namespace Aurora
                 case "secretDel": Secrets.Del(J.Str(a, "name")); return true;
                 case "secretList": return Secrets.Names();
                 case "secretFetch": return Secrets.FetchUrlSecret(J.Str(a, "name"));
+                case "larkOpenChat": return LarkPopup.OpenChat(J.Str(a, "name"), J.Str(a, "paste"));
+                case "larkPopupHide": LarkPopup.Hide = J.Bool(a, "on", true); return true;
                 case "notifApps": return Notifs.InstalledApps();
                 case "notifBanners": return Notifs.SetBanners(a);
                 case "notifs": return Notifs.Snapshot();
@@ -321,6 +350,7 @@ namespace Aurora
                     { string act = J.Str(a, "action"); return act == "install" ? ClaudeHook.Install() : act == "remove" ? ClaudeHook.Remove() : ClaudeHook.Status(); }
                 case "claudeRate": return ClaudeHook.Rate();
                 case "sdRead": return ShiftDesk.Read(a);
+                case "sdSchedule": return ShiftDesk.Schedule(a);
                 case "sdClick": return ShiftDesk.Click(a);
                 case "sdLogin": return ShiftDesk.ShowLogin(a);
                 case "sdHide": return ShiftDesk.Hide();
@@ -464,7 +494,17 @@ namespace Aurora
             const string key = @"Software\Microsoft\Windows\CurrentVersion\Run";
             using (var rk = Registry.CurrentUser.OpenSubKey(key, true))
             {
-                if (set) { if (on) rk.SetValue("AuroraDock", "\"" + Application.ExecutablePath + "\""); else rk.DeleteValue("AuroraDock", false); }
+                if (set)
+                {
+                    string off = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "autostart.off");
+                    if (on)
+                    {
+                        rk.SetValue("AuroraDock", "\"" + Application.ExecutablePath + "\"");
+                        try { File.Delete(off); } catch { }
+                        try { using (var ap = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true)) if (ap != null) ap.DeleteValue("AuroraDock", false); } catch { }
+                    }
+                    else { rk.DeleteValue("AuroraDock", false); try { File.WriteAllText(off, "1"); } catch { } }
+                }
                 return rk.GetValue("AuroraDock") != null;
             }
         }

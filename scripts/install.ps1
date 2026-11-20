@@ -47,9 +47,13 @@ if (Test-Path $oldStartup) { Remove-Item $oldStartup -Force }   # ban cu tu chay
 if (-not $Version -and (Test-Path (Join-Path $root '.git'))) { try { $Version = (& git -C $root rev-parse HEAD).Trim() } catch { } }
 if ($Version) { Set-Content -Path (Join-Path $dst 'version.txt') -Value $Version -Encoding ascii }
 
-if ($Silent) { $a = 'n' } else { $a = Read-Host 'Tu khoi dong cung Windows? (y/n)' }
-if ($a -eq 'y') {
-  Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'AuroraDock' -Value "`"$exe`""
+# Mac dinh TU KHOI DONG cung Windows. Chi tat khi nguoi dung da chu dong tat (file autostart.off).
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$optOut = Join-Path $dst 'autostart.off'
+if (-not (Test-Path $optOut)) {
+  Set-ItemProperty -Path $runKey -Name 'AuroraDock' -Value "`"$exe`""
+  # neu Windows dang danh dau "Disabled" trong Task Manager > Startup thi bat lai
+  Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' -Name 'AuroraDock' -ErrorAction SilentlyContinue
 }
 
 Write-Host ''

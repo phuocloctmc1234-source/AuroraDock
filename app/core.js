@@ -15,8 +15,9 @@ const dock=$('#dock'),track=$('#track'),pop=$('#pop'),panel=$('#panel');
 /* ---------- cấu hình (lưu trong hồ sơ WebView của app) ---------- */
 const CFG=Object.assign({autoStart:true,leadStart:10,graceMin:60,autoBrk:true,leadBrk:1,cdSec:10,url:'',token:'',pollSched:60,pollState:60,
  sty:0,sliders:null,eco:true,autoEco:true,pos:'bottom',lay:'pill',autoContrast:true,compact:false,ctx:true,slAuto:false,bed:'23:00',wake:'06:30',
- wOn:{},taskbar:'autohide',reserve:true,pins:null,city:'',geo:null,claudeLimit:'',man:{start:'',brkFrom:'',brkTo:''},todos:[],sdUrl:'',sdAuto:false,sdLead:1,nApps:{},nSeen:{},hideBannerExp:true},store.get('cfg',{}));
+ wOn:{},taskbar:'autohide',reserve:true,pins:null,city:'',geo:null,claudeLimit:'',man:{start:'',brkFrom:'',brkTo:''},todos:[],sdUrl:'',sdAuto:false,sdLead:1,nApps:{},nSeen:{},hideBannerExp:true,sdSched:true,bubPrivate:false,dnd:false},store.get('cfg',{}));
 if(!store.get('bnMig2')){CFG.hideBannerExp=true;store.set('bnMig2',1);try{store.set('cfg',CFG)}catch(e){}}
+CFG.autoStart=CFG.autoBrk=false; if(!store.get('sdAutoMig')){CFG.sdAuto=true;store.set('sdAutoMig',1);try{store.set('cfg',CFG)}catch(e){}} /* da go bo tinh nang tu cham cong */
 CFG.nApps=CFG.nApps||{};CFG.nSeen=CFG.nSeen||{};CFG.wOn=CFG.wOn||{};CFG.man=CFG.man||{start:'',brkFrom:'',brkTo:''};CFG.todos=CFG.todos||[];
 const saveCfg=()=>store.set('cfg',CFG);
 
@@ -32,7 +33,8 @@ function showUpd(m){const u=$('#upd');if(!u)return;u.innerHTML=`<span>⬆ <b>Có
  $('#updX').onclick=()=>{u.classList.remove('on');kick()};
  $('#updGo').onclick=async()=>{u.innerHTML='<span>⏳ Đang cập nhật… app sẽ tự khởi động lại</span>';kick();try{await host('updateApply',{},30000)}catch(e){u.classList.remove('on');toast('Lỗi cập nhật: '+e.message);kick()}}}
 function setUpdFg(){}
-function onHostEvent(m){if(m.ev==='update'){showUpd(m);return}if(m.ev==='updateNone'){toast('Đang dùng bản mới nhất');return}if(m.ev==='openPanel'){openPanel();return}if(m.ev==='inset'){const R=document.documentElement.style;R.setProperty('--it',(m.top||0)+'px');R.setProperty('--ib',(m.bottom||0)+'px');kick(1200)}}
+let _warnT=0;
+function onHostEvent(m){if(m.ev==='pause'){window.PAUSED=!!m.on;if(!m.on)try{runProviders(true)}catch(e){}return}if(m.ev==='warn'){if(Date.now()-_warnT>30*60*1000){_warnT=Date.now();toast('⚠ '+m.msg)}return}if(m.ev==='notifNew'){try{pump('notif')}catch(e){}return}if(m.ev==='update'){showUpd(m);return}if(m.ev==='updateNone'){toast('Đang dùng bản mới nhất');return}if(m.ev==='openPanel'){openPanel();return}if(m.ev==='inset'){const R=document.documentElement.style;R.setProperty('--it',(m.top||0)+'px');R.setProperty('--ib',(m.bottom||0)+'px');kick(1200)}}
 if(HOSTED)chrome.webview.addEventListener('message',e=>{let m=e.data;if(typeof m==='string'){try{m=JSON.parse(m)}catch(_){return}}
  if(m.ev){onHostEvent(m);return}
  const p=_p.get(m.id);if(!p)return;_p.delete(m.id);clearTimeout(p.t);m.ok?p.res(m.d):p.rej(new Error(m.e||'lỗi'))});
@@ -76,7 +78,7 @@ let animUntil=0,rafId=0,regTimer=0,lastReg='';
 function rects(){const out=[];
  const add=(e,r,p)=>{if(!e)return;const cs=getComputedStyle(e);if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity<.02)return;const b=e.getBoundingClientRect();if(b.width<2||b.height<2)return;
   const q=v=>Math.round(v*2)/2,g=p||0;out.push({x:q(b.left-g),y:q(b.top-g),w:q(b.width+2*g),h:q(b.height+2*g),r:r+g})};
- add(dock,parseFloat(getComputedStyle(dock).borderTopLeftRadius)||26);add(pop,22);add(panel,26);add($('#cd'),18);add($('#upd'),18);add($('#bcard'),20);
+ add(dock,parseFloat(getComputedStyle(dock).borderTopLeftRadius)||26);add(pop,22);add(panel,26);add($('#cd'),18);add($('#upd'),18);add($('#bcard'),20);add($('#tip'),8);
  document.querySelectorAll('.toast').forEach(e=>add(e,16));document.querySelectorAll('.bubble').forEach(e=>add(e,26,6));   // +6px: huy hiệu số và dấu @ nhô ra ngoài mép
  if(window.DRAG||(typeof POP!=='undefined'&&POP)||(panel&&panel.classList.contains('show')))out.unshift({x:0,y:0,w:innerWidth,h:innerHeight,r:0,hit:1});   // popup/cài đặt đang mở: bắt click ra ngoài để tự đóng
  if(window.DRAG)out.push({x:0,y:0,w:innerWidth,h:innerHeight,r:0,hit:1});   // đang kéo bong bóng: nhận chuột toàn màn hình (không làm mờ)

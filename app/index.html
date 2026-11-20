@@ -23,7 +23,7 @@ body:not(.hosted) #nohost{display:block}
  background:radial-gradient(240px 90px at var(--mx) var(--my),rgba(255,255,255,.26),transparent 70%),linear-gradient(115deg,rgba(255,255,255,.2) 0,transparent 28%,transparent 72%,rgba(255,255,255,.08) 100%);opacity:.9}
 .dock::after{content:"";position:absolute;left:14px;right:14px;top:1px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);pointer-events:none;opacity:calc(var(--ba) + .2)}
 .dock.bottom{bottom:calc(14px + var(--ib,0px))}.dock.top{top:calc(14px + var(--it,0px))}
-.dock.pill{left:50%;transform:translateX(-50%)}
+.dock.pill{left:50%;transform:translateX(-50%);width:max-content}
 .dock.full{left:10px;right:10px;transform:none;justify-content:flex-start}
 .dock.full.bottom{bottom:calc(8px + var(--ib,0px))}.dock.full.top{top:calc(8px + var(--it,0px))}
 .track{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none;max-width:100%;position:relative;z-index:1;padding:1px}
@@ -38,6 +38,18 @@ body:not(.hosted) #nohost{display:block}
 .w .v{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
 .w .l{font-size:10.5px;opacity:.72;letter-spacing:.2px;max-width:170px;overflow:hidden;text-overflow:ellipsis}
 .w.dim{opacity:.7}
+#tip{position:fixed;z-index:40;max-width:320px;padding:5px 9px;border-radius:8px;background:rgba(20,22,30,.92);color:#fff;font-size:11.5px;line-height:1.3;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s}#tip.show{opacity:1;visibility:visible}
+.w img{-webkit-user-drag:none}
+.w.dragging{opacity:.35}.w.dropL{box-shadow:-3px 0 0 #fff}.w.dropR{box-shadow:3px 0 0 #fff}
+.w[data-st=compact]{padding:5px 9px;gap:6px}.w[data-st=compact] .l{display:none}.w[data-st=compact] .chip{width:22px;height:22px;font-size:10px}.w[data-st=compact] .ring{width:24px;height:24px}.w[data-st=compact] .v{font-size:13px}
+.w[data-st=icon] .t{display:none}
+.w[data-st=text] .chip,.w[data-st=text] .ring{display:none}
+.w[data-st=accent]{background:linear-gradient(135deg,rgba(255,255,255,.3),rgba(255,255,255,.08));box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)}
+.w[data-st=outline]{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.38)}
+.w[data-st=big]{padding:9px 16px;gap:11px}.w[data-st=big] .v{font-size:18px}.w[data-st=big] .l{font-size:12px}.w[data-st=big] .chip{width:36px;height:36px;font-size:13px}.w[data-st=big] .ring{width:38px;height:38px}
+.win span[data-act]{cursor:pointer}
+.tri.hot{box-shadow:0 0 0 1.5px #ffb020}
+
 .up{color:#7dffb2}.dn{color:#ff9a9a}
 .chip{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 2px 6px rgba(0,0,0,.25);flex:none}
 .ring{width:30px;height:30px;flex:none;transform:rotate(-90deg)}
@@ -58,7 +70,21 @@ body:not(.hosted) #nohost{display:block}
 .task{position:relative;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;cursor:pointer;transition:background .15s,transform .15s}
 .task:hover{background:rgba(255,255,255,.18);transform:translateY(-3px)}
 .task.act{background:rgba(255,255,255,.26)}
+.task.split{width:auto;grid-auto-flow:column;gap:5px;padding:0 9px 0 7px}
+.task .lb{font-style:normal;font-size:11px;font-weight:600;max-width:52px;overflow:hidden;white-space:nowrap;pointer-events:none}
+.bgs{display:flex;align-items:center;gap:4px;padding:0 4px}
+.bgi{position:relative;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.22);transition:transform .15s,box-shadow .3s}
+.bgi:hover{transform:translateY(-3px) scale(1.15)}
+.bgi img{width:14px;height:14px;pointer-events:none}.bgi b{font-size:10px}
+.bgi.warm{box-shadow:inset 0 0 0 1.5px rgba(120,255,180,.7)}
+.bgi.hot{box-shadow:0 0 0 1.5px #ffb020,0 0 8px #ffb020;animation:bgp 1.4s ease-in-out infinite}
+@keyframes bgp{50%{box-shadow:0 0 0 1.5px #ffb020,0 0 2px #ffb020}}
+.bgm{font-size:10px;opacity:.7;padding:0 3px;white-space:nowrap}
+.bgi.chev{font-size:12px;font-weight:700;width:auto;min-width:22px;padding:0 5px;border-radius:11px;gap:1px;grid-auto-flow:column}.bgi.chev sup{font-size:9px;font-weight:600;opacity:.8}
+.trg{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.tri{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.12);cursor:pointer}.tri:hover{background:rgba(255,255,255,.26)}.tri img{width:22px;height:22px;pointer-events:none}
+body.eco .bgi.hot{animation:none}
 .task img{width:24px;height:24px;pointer-events:none}
+.task img.av{width:18px;height:18px;border-radius:50%;order:-1;width:20px;height:20px;box-shadow:0 0 0 1.5px rgba(255,255,255,.85)}
 .task b{font-size:13px;pointer-events:none}
 .task.run::after{content:"";position:absolute;bottom:2px;left:50%;width:10px;height:3px;margin-left:-5px;border-radius:2px;background:#fff;opacity:.6}
 .task.act::after{width:16px;margin-left:-8px;opacity:1}
@@ -239,6 +265,8 @@ body.eco .bubble{animation:none}
  <div class="dsrc"><b>Thông báo của Windows</b><span class="st" id="st-notif"></span>
   <div class="hp">Mọi app (Messenger/Instagram mở trong Chrome-Edge, Lark, Zalo, Telegram…) đều gửi thông báo qua Windows. Aurora Dock đọc các thông báo đang nằm trong trung tâm thông báo và hiện tin chưa xem thành bong bóng. Chat bạn đã tắt thông báo thì app không gửi nên sẽ không hiện. Chỉ các app được bật bên dưới mới hiện bong bóng (mặc định bật các app nhắn tin quen thuộc). Nội dung chỉ đọc trên máy, không gửi đi đâu. Windows phải bật thông báo; bạn có thể tắt “banner” từng app (giữ “hiện trong trung tâm thông báo”) để bong bóng thay cho banner.</div>
   <div class="tg"><span>Ẩn popup thông báo của Windows<small>Tin hiện thành bong bóng thay vì banner (vẫn lưu trong trung tâm thông báo). Tự trả lại khi thoát dock.</small></span><div class="sw" data-cfg="hideBannerExp"></div></div>
+  <div class="tg"><span>Không làm phiền<small>Bong bóng vẫn hiện, nhưng không bật thông báo nhỏ trên dock.</small></span><div class="sw" data-cfg="dnd"></div></div>
+  <div class="tg"><span>Ẩn nội dung tin<small>Chỉ hiện “Tin nhắn mới”, hợp khi chia sẻ màn hình.</small></span><div class="sw" data-cfg="bubPrivate"></div></div>
   <div id="nlist"></div></div>
 
  <h3 id="secLark">Lark · @mention thành bong bóng chat</h3>
@@ -259,8 +287,10 @@ body.eco .bubble{animation:none}
   <div class="hp">Dock mở Shift Desk trong một cửa sổ ẩn riêng, đọc trạng thái break (giờ VN) và bấm đúng nút “Bắt đầu nghỉ / Kết thúc nghỉ”. Bạn đăng nhập Google công ty MỘT lần (phiên được lưu mã hóa trên máy, mật khẩu không đi đâu khác). Hãy hỏi IT/quản lý xem công ty có cho phép tự động hóa này không.</div>
   <div class="r"><input class="inp" data-cfg="sdUrl" placeholder="https://script.google.com/a/…/macros/s/…/exec" autocomplete="off"></div>
   <div class="r"><button class="btn" id="sd-login">Mở Shift Desk (đăng nhập)</button><button class="btn" id="sd-hide">Ẩn cửa sổ</button><button class="btn" id="sd-read">Đọc ngay</button><button class="btn" id="sd-diag">Sao chép chẩn đoán</button></div>
-  <div class="tg" style="margin-top:8px"><span>Tự kết thúc nghỉ<small>Bấm “Kết thúc nghỉ” trước giờ kế hoạch. Luôn có đếm ngược + nút Hủy. TẮT mặc định.</small></span><div class="sw" data-cfg="sdAuto"></div></div>
+  <div class="tg" style="margin-top:8px"><span>Tự kết thúc nghỉ<small>Bấm “Kết thúc nghỉ” trước giờ kế hoạch. Luôn có đếm ngược + nút Hủy.</small></span><div class="sw" data-cfg="sdAuto"></div></div>
   <div class="sl"><span>Trước giờ kết thúc (phút)</span><input class="inp" type="number" min="0" max="30" data-cfg="sdLead"></div>
+  <div class="sl"><span>Đếm ngược để Hủy (giây)</span><input class="inp" type="number" min="3" max="60" data-cfg="cdSec"></div>
+  <div class="tg" style="margin-top:8px"><span>Lấy giờ vào ca từ lịch Shift Desk<small>Đọc tab “Lịch &amp; Đổi ca” (cửa sổ ẩn, 3 giờ/lần) để biết ca hôm nay và ca tiếp theo.</small></span><div class="sw" data-cfg="sdSched"></div></div>
   <div class="mini2">“Bắt đầu nghỉ” vẫn do bạn bấm (trên dock hoặc trên Shift Desk).</div></div>
 
  <h3>Chấm công</h3>
@@ -273,12 +303,6 @@ body.eco .bubble{animation:none}
  <div class="sl"><span>Đối chiếu ca (giây)</span><input class="inp" type="number" min="15" max="600" data-cfg="pollState"></div>
 
  <h3>Ca làm & Break</h3>
- <div class="tg"><span>Tự bắt đầu ca<small>Trước giờ vào ca</small></span><div class="sw" data-cfg="autoStart"></div></div>
- <div class="sl"><span>Trước (phút)</span><input class="inp" type="number" min="0" max="60" data-cfg="leadStart"></div>
- <div class="sl"><span>Quá giờ tối đa (phút)</span><input class="inp" type="number" min="0" max="240" data-cfg="graceMin"></div>
- <div class="tg"><span>Tự kết thúc break<small>Trước giờ quy định</small></span><div class="sw" data-cfg="autoBrk"></div></div>
- <div class="sl"><span>Trước (phút)</span><input class="inp" type="number" min="0" max="30" data-cfg="leadBrk"></div>
- <div class="sl"><span>Đếm ngược để Hủy (giây)</span><input class="inp" type="number" min="3" max="60" data-cfg="cdSec"></div>
  <div class="sl"><span>Giờ vào ca</span><input class="inp" type="time" id="tStart"></div>
  <div class="sl"><span>Break từ</span><input class="inp" type="time" id="tBF"></div>
  <div class="sl"><span>Break đến</span><input class="inp" type="time" id="tBT"></div>
@@ -297,7 +321,7 @@ body.eco .bubble{animation:none}
 
 <script>
 /* Luôn tải bản script mới nhất: WebView lưu đệm file tĩnh nên sau khi cập nhật app có thể chạy lẫn code cũ-mới. Thứ tự tải giữ nguyên. */
-(function(){var v=Date.now();['core','shift','widgets','bubbles','shiftdesk','ui'].forEach(function(n){document.write('<script src="'+n+'.js?v='+v+'"><\/script>')})})();
+(function(){var v=Date.now();['core','shift','widgets','bubbles','shiftdesk','tray','ui'].forEach(function(n){document.write('<script src="'+n+'.js?v='+v+'"><\/script>')})})();
 </script>
 </body>
 </html>

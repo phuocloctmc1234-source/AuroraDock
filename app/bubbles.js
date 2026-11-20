@@ -14,7 +14,7 @@ const NOTIF_RE=/messenger|instagram|facebook|whatsapp|telegram|zalo|lark|feishu|
 const nKey=i=>i.site?'site:'+String(i.site).toLowerCase():'app:'+String(i.aumid).toLowerCase();
 const nEnabled=i=>{const k=nKey(i);if(k in CFG.nApps)return !!CFG.nApps[k];return NOTIF_RE.test((i.site||'')+' '+i.app+' '+i.aumid)};
 const itemsWin=()=>{if(!notifOn()||!DATA.notif)return [];const lim=Date.now()-3*36e5;
- return DATA.notif.items.filter(i=>i.t>lim&&nEnabled(i)&&!(larkLive()&&i.app==='Lark')).map(i=>({id:i.id,src:'win',chat:'w:'+nKey(i)+'|'+i.title,chatName:i.title,sender:i.title,text:i.text,t:i.t,appName:i.site||i.app,
+ return DATA.notif.items.filter(i=>i.t>lim&&nEnabled(i)&&!(larkLive()&&i.app==='Lark'&&DATA.lark.items.some(m=>m.text&&i.text&&(m.text.includes(i.text.slice(0,30))||i.text.includes(m.text.slice(0,30)))))).map(i=>({id:i.id,src:'win',chat:'w:'+nKey(i)+'|'+i.title,chatName:i.title,sender:i.title,text:i.text,t:i.t,appName:i.site||i.app,
   url:i.site?'https://'+i.site:'shell:AppsFolder\\'+i.aumid}))};
 const allItems=()=>itemsLark().concat(itemsWin()).sort((a,b)=>b.t-a.t);
 const unseen=()=>allItems().filter(i=>!LSEEN.has(i.id));
@@ -42,7 +42,7 @@ async function pLark(){
 function onLarkData(r){
  const ids=new Set(r.items.map(i=>i.id));
  if(lastIds){const fresh=r.items.filter(i=>!lastIds.has(i.id)&&!LSEEN.has(i.id));
-  fresh.slice(0,3).forEach(i=>toast('💬 '+i.sender+' @bạn'+(i.chatName?' · '+i.chatName:'')+': '+(i.text||'').slice(0,70)));
+  if(!CFG.dnd)fresh.slice(0,3).forEach(i=>toast('💬 '+i.sender+' @bạn'+(i.chatName?' · '+i.chatName:'')+': '+priv(i.text||'').slice(0,70)));
   fresh.forEach(i=>NEWCHAT.add(i.chat))}
  lastIds=ids;renderBubbles();tick()}
 const NEWCHAT=new Set();
@@ -73,7 +73,7 @@ function openCardFor(chat){const g=groupsL().find(x=>x.chat===chat),el=bubbleOf(
  const msgs=g.items.slice(0,6).reverse();   // cũ → mới, như khung chat
  bcard.innerHTML=`<div class="bh"><span class="av" style="--c1:hsl(${h} 75% 58%);--c2:hsl(${(h+50)%360} 70% 45%)">${esc(lab.toUpperCase())}</span><div class="bt"><b>${esc(name)}</b><span>${esc(g.app||'')}${g.items.length>1?' · '+g.items.length+' tin':''}</span></div><button class="bx" data-bact="close" title="Đóng">✕</button></div>`
   +`<div class="bl" id="bl">`+(g.items.length>6?`<div class="bmore">… ${g.items.length-6} tin cũ hơn</div>`:'')
-  +msgs.map(i=>`<div class="bm"><small>${esc(i.sender)} · ${ago(i.t)}</small><p>${esc(i.text||'…')}</p></div>`).join('')+`</div>`
+  +msgs.map(i=>`<div class="bm"><small>${esc(i.sender)} · ${ago(i.t)}</small><p>${esc(priv(i.text||'…'))}</p></div>`).join('')+`</div>`
   +`<div class="br"><input class="inp" id="bIn" placeholder="${g.items[0].src==='lark'?'Trả lời nhanh…':'Soạn tin (sẽ sao chép và mở '+esc(g.app||'app')+')'}" autocomplete="off"><button class="bsend" id="bSend" data-bact="send" title="Gửi">➤</button></div>`
   +`<div class="bf"><button class="btn" data-bact="open">Mở ${esc(g.app||'app')}</button><button class="btn" data-bact="seen">Đã xem</button></div>`;
  const r=el.getBoundingClientRect(),left=bubbles.classList.contains('left');
@@ -84,6 +84,7 @@ function openCardFor(chat){const g=groupsL().find(x=>x.chat===chat),el=bubbleOf(
 function closeCard(){openChat=null;bcard.classList.remove('show');kick(500)}
 function markGroupSeen(chat){const g=groupsL().find(x=>x.chat===chat);if(!g)return;g.items.forEach(i=>LSEEN.add(i.id));saveSeen();
  const el=bubbleOf(chat);closeCard();if(el){el.classList.add('out');setTimeout(()=>{renderBubbles();tick()},230)}else{renderBubbles();tick()}}
+const isLarkWin=g=>g.items[0]&&g.items[0].src==='win'&&g.app==='Lark';
 async function sendReply(){const inp=$('#bIn');if(!inp||!openChat)return;const text=inp.value.trim();if(!text)return;
  const chat=openChat,g=groupsL().find(x=>x.chat===chat);if(!g)return;const last=g.items[0];
  if(last.src==='lark'){inp.disabled=true;
@@ -91,12 +92,14 @@ async function sendReply(){const inp=$('#bIn');if(!inp||!openChat)return;const t
    const bl=$('#bl');if(bl)bl.insertAdjacentHTML('beforeend',`<div class="bm me"><p>${esc(text)}</p></div>`),bl.scrollTop=bl.scrollHeight;
    toast('✓ Đã gửi trả lời');inp.value='';setTimeout(()=>markGroupSeen(chat),700)}
   catch(e){inp.disabled=false;toast('Không gửi được: '+e.message)}}
+ else if(isLarkWin(g)){toast('Đang mở cuộc chat trong Lark… tin đã được dán sẵn, bấm Enter để gửi');host('larkOpenChat',{name:g.chatName,paste:text},40000).catch(e=>toast('Không mở được: '+e.message));markGroupSeen(chat)}
  else{try{await navigator.clipboard.writeText(text)}catch(_){}
   host('launch',{target:g.url}).catch(()=>{});toast('Đã sao chép tin — dán (Ctrl+V) vào ô chat để gửi');markGroupSeen(chat)}}
 bcard.addEventListener('click',e=>{const b=e.target.closest('[data-bact]');if(!b||!openChat)return;const chat=openChat,g=groupsL().find(x=>x.chat===chat);
  if(b.dataset.bact==='close'){closeCard();return}
  if(b.dataset.bact==='send'){sendReply();return}
- if(b.dataset.bact==='open'&&g)host('launch',{target:g.url}).catch(err=>toast('Không mở được '+(g.app||'app')+': '+err.message));
+ if(b.dataset.bact==='open'&&g&&isLarkWin(g))host('larkOpenChat',{name:g.chatName},40000).catch(err=>toast('Không mở được chat Lark: '+err.message));
+ else if(b.dataset.bact==='open'&&g)host('launch',{target:g.url}).catch(err=>toast('Không mở được '+(g.app||'app')+': '+err.message));
  markGroupSeen(chat)});
 bcard.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='bIn'){e.preventDefault();sendReply()}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.bubble')&&!e.target.closest('#bcard'))closeCard()},true);
@@ -139,6 +142,7 @@ $('#lk-login').onclick=async()=>{try{lkEdit=false;await larkSave();await host('l
  if(DATA.larkStatus.loggedIn){setWidgetOn('lark',true);toast('✓ Đã kết nối Lark: '+DATA.larkStatus.name);pump('lark')}else if(DATA.larkStatus.error)toast('Lark: '+DATA.larkStatus.error)}catch(e){toast('Lỗi: '+e.message)}};
 /* ---------- Thông báo Windows → bong bóng ---------- */
 let lastNIds=null;
+const priv=t=>CFG.bubPrivate?'Tin nhắn mới':t;
 const nTitle=i=>(i.appName||'')+' · '+i.sender;
 const notifWidget={id:'notif',g:'Thông báo',name:'Thông báo → bong bóng',on:true,prov:'notif',
  r:()=>{const n=DATA.notif;if(!n.enabled&&!n.items.length)return `${chip('🔕',GREY)}<div class="t"><span class="v">Thông báo tắt</span><span class="l">Bật trong Windows</span></div>`;
@@ -153,11 +157,12 @@ let INST=[];
 async function loadInst(){try{INST=await host('notifApps',{},40000);INST.forEach(a=>{const k='app:'+a.aumid.toLowerCase();if(!CFG.nSeen[k]&&NOTIF_RE.test(a.name+' '+a.aumid)){CFG.nSeen[k]=a.name}});saveCfg();const el=$('#nlist');if(el)el._sig='';refreshNotifUi();if(DATA.notif)syncBanners(DATA.notif)}catch(e){}}
 setTimeout(loadInst,1500);
 let lastBn='';
-function syncBanners(r){const ids=CFG.hideBannerExp&&notifOn()?[...new Set(r.items.filter(nEnabled).map(i=>i.aumid).concat(INST.filter(a=>nEnabled({aumid:a.aumid,app:a.name,site:''})).map(a=>a.aumid)).filter(Boolean))]:[];const s=ids.sort().join('|');lastBn=s;host('notifBanners',{aumids:ids}).catch(()=>{lastBn=''})}
+function syncBanners(r){const ph=!!CFG.hideBannerExp&&notifOn();if(syncBanners._ph!==ph){syncBanners._ph=ph;host('larkPopupHide',{on:ph}).catch(()=>{})}
+ const ids=CFG.hideBannerExp&&notifOn()?[...new Set(r.items.filter(nEnabled).map(i=>i.aumid).concat(INST.filter(a=>nEnabled({aumid:a.aumid,app:a.name,site:''})).map(a=>a.aumid)).filter(Boolean))]:[];const s=ids.sort().join('|');lastBn=s;host('notifBanners',{aumids:ids}).catch(()=>{lastBn=''})}
 function onNotifData(r){syncBanners(r);
  r.items.forEach(i=>{const k=nKey(i);if(!CFG.nSeen[k]){CFG.nSeen[k]=i.site||i.app;saveCfg()}});
  const cur=itemsWin(),fresh=lastNIds?cur.filter(i=>!lastNIds.has(i.id)&&!LSEEN.has(i.id)):[];
- fresh.slice(0,3).forEach(i=>toast('💬 '+nTitle(i)+': '+(i.text||'').slice(0,70)));fresh.forEach(i=>NEWCHAT.add(i.chat));
+ if(!CFG.dnd)fresh.slice(0,3).forEach(i=>toast('💬 '+nTitle(i)+': '+priv(i.text||'').slice(0,70)));fresh.forEach(i=>NEWCHAT.add(i.chat));
  lastNIds=new Set(cur.map(i=>i.id));renderBubbles();refreshNotifUi();tick()}
 function refreshNotifUi(){const el=$('#nlist');if(!el)return;const n=DATA.notif;
  $('#st-notif').textContent=!n?'…':n.ok===false?'✗ '+(n.error||'lỗi'):(n.enabled?'✓ Windows đang gửi thông báo':'⚠ Thông báo Windows đang TẮT')+' · '+n.items.length+' thông báo trong trung tâm';

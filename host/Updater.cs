@@ -66,6 +66,9 @@ namespace Aurora
                 "  Invoke-WebRequest -UseBasicParsing -Uri 'https://codeload.github.com/" + Repo + "/zip/" + Latest + "' -OutFile $zip\r\n" +
                 "  Expand-Archive -Path $zip -DestinationPath $x -Force\r\n" +
                 "  $root=(Get-ChildItem $x -Directory | Select-Object -First 1).FullName\r\n" +
+                "  $tb=Join-Path '" + tmp.Replace("'", "''") + "' 'testbuild'\r\n" +
+                "  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'host\\build.ps1') -Out $tb\r\n" +
+                "  if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $tb 'AuroraHost.exe'))) { throw 'Ban moi khong bien dich duoc - giu nguyen ban hien tai' }\r\n" +
                 "  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\\install.ps1') -Silent -Version '" + Latest + "'\r\n" +
                 "  L 'installed'\r\n" +
                 "} catch { L ('ERROR '+$_) }\r\n" +

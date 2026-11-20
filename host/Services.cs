@@ -39,6 +39,7 @@ namespace Aurora
     {
         public static readonly string Data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AuroraDock");
         public static readonly object LogLock = new object();
+        public static void Warn(string s) { Log("WARN " + s); }
         public static void Log(string s)
         {
             try
@@ -47,7 +48,7 @@ namespace Aurora
                 {
                     Directory.CreateDirectory(Data);
                     string f = Path.Combine(Data, "host.log");
-                    if (File.Exists(f) && new FileInfo(f).Length > 512 * 1024) File.Delete(f);
+                    if (File.Exists(f) && new FileInfo(f).Length > 512 * 1024) { string o = f + ".old"; if (File.Exists(o)) File.Delete(o); File.Move(f, o); }
                     File.AppendAllText(f, DateTime.Now.ToString("s") + " " + s + "\r\n");
                 }
             }

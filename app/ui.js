@@ -2,14 +2,20 @@
 /* Giao diện: dựng dock, popover, bảng cài đặt, kiểu kính, vòng lặp chính. */
 let POP=null,lastSig='';
 const shown=w=>w.on&&(!w.hw||w.hw())&&(!CFG.ctx||!w.vis||w.vis());
-const sig=()=>W.filter(shown).map(w=>w.id).join();
+/* ---- vị trí & kiểu giao diện widget (kéo-thả, chuột phải) ---- */
+CFG.worder=CFG.worder||[];CFG.wStyle=CFG.wStyle||{};
+const WSTY=[['','Mặc định'],['compact','Gọn'],['icon','Chỉ icon'],['text','Chỉ chữ'],['accent','Nổi bật'],['outline','Viền kính'],['big','Lớn']];
+const ordIdx=id=>{const i=CFG.worder.indexOf(id);return i<0?1e6:i};
+const allOrdered=()=>{const base=W.slice();return base.sort((a,b)=>ordIdx(a.id)-ordIdx(b.id)||base.indexOf(a)-base.indexOf(b))};
+const dockW=()=>allOrdered().filter(shown);
+const sig=()=>dockW().map(w=>w.id+(CFG.wStyle[w.id]||'')).join();
 function build(){lastSig=sig();track.innerHTML='';
- W.filter(shown).forEach(w=>{const e=document.createElement('div');e.className='w';e.dataset.id=w.id;const h=renderW(w);e._h=h;e.innerHTML=h;
+ dockW().forEach(w=>{const e=document.createElement('div');e.className='w';e.dataset.id=w.id;e.draggable=true;if(CFG.wStyle[w.id])e.dataset.st=CFG.wStyle[w.id];const h=renderW(w);e._h=h;e.innerHTML=h;
   e.onclick=ev=>{const ok=wstate(w)==='ok';
    if(ok&&w.act){w.act(ev);tick();return}
    if(ok&&w.click){w.click();tick()}
    if(w.p||(w.prov&&!ok))openPop(w.id,()=>renderP(w),e);else closePop()};
-  if(w.ctx)e.oncontextmenu=ev=>{if(wstate(w)==='ok')w.ctx(ev)};
+  e.oncontextmenu=ev=>{ev.preventDefault();try{if(w.ctx&&wstate(w)==='ok'&&(!w.ctxSel||ev.target.closest(w.ctxSel))){w.ctx(ev);return}styleMenu(w,e)}catch(x){toast('Lỗi menu: '+x.message)}};
   track.appendChild(e)})}
 function tick(){
  if(sig()!==lastSig){if(POP&&!track.querySelector(POP.sel))closePop();build();return}
@@ -154,3 +160,42 @@ function loop(){const n=Date.now();if(n-lastLoop<800)return;lastLoop=n;heartbeat
  runProviders(true);
  refreshSchedule().then(()=>{pullState();evalAuto()});if(QUEUE.length)flush();
 })();
+
+/* ---- kéo-thả sắp xếp widget ---- */
+let DRAGID=null,MDOWN=null;
+track.addEventListener('mousedown',ev=>{MDOWN=ev.target});
+track.addEventListener('dragstart',ev=>{const w=ev.target.closest&&ev.target.closest('.w');if(!w)return;
+ if(w.dataset.id==='tasks'&&MDOWN&&MDOWN.closest&&MDOWN.closest('.task')){ev.preventDefault();return}   // kéo icon app trong thanh tác vụ: không di chuyển cả widget
+ DRAGID=w.dataset.id;ev.dataTransfer.setData('text/plain',DRAGID);ev.dataTransfer.effectAllowed='move';w.classList.add('dragging');closePop()});
+const clearDrop=()=>track.querySelectorAll('.w').forEach(x=>x.classList.remove('dropL','dropR','dragging'));
+track.addEventListener('dragover',ev=>{if(!DRAGID)return;ev.preventDefault();ev.dataTransfer.dropEffect='move';
+ track.querySelectorAll('.w').forEach(x=>x.classList.remove('dropL','dropR'));const w=ev.target.closest('.w');
+ if(w&&w.dataset.id!==DRAGID){const r=w.getBoundingClientRect();w.classList.add(ev.clientX<r.left+r.width/2?'dropL':'dropR')}});
+track.addEventListener('drop',ev=>{if(!DRAGID)return;ev.preventDefault();const w=ev.target.closest('.w');
+ if(w&&w.dataset.id!==DRAGID){const r=w.getBoundingClientRect(),after=ev.clientX>=r.left+r.width/2;moveWidget(DRAGID,w.dataset.id,after)}
+ DRAGID=null;clearDrop()});
+track.addEventListener('dragend',()=>{DRAGID=null;clearDrop()});
+function moveWidget(id,target,after){const ids=allOrdered().map(w=>w.id).filter(x=>x!==id),i=ids.indexOf(target);if(i<0)return;
+ ids.splice(i+(after?1:0),0,id);CFG.worder=ids;saveCfg();build()}
+function nudgeWidget(id,d){const vis=dockW().map(w=>w.id),i=vis.indexOf(id),j=i+d;if(i<0||j<0||j>=vis.length)return;moveWidget(id,vis[j],d>0)}
+/* ---- chuột phải: đổi kiểu giao diện widget ---- */
+function styleMenu(w,anchor){openPop('sty:'+w.id,()=>{const cur=CFG.wStyle[w.id]||'';
+ return `<h4>${esc(w.name)}</h4><div class="note">Kiểu giao diện</div>`
+  +WSTY.map(([k,t])=>`<div class="win"><span data-act="wStyle" data-arg="${w.id}|${k}">${k===cur?'✓ ':'　'}${t}</span></div>`).join('')
+  +`<div class="note" style="margin-top:6px">Vị trí (hoặc kéo-thả widget)</div><div class="btns">${btn('◀ Sang trái','wMove',w.id+'|-1')}${btn('Sang phải ▶','wMove',w.id+'|1')}</div>`
+  +(CFG.worder.length?`<div class="btns">${btn('↺ Đặt lại vị trí tất cả','wReset')}</div>`:'')},anchor)}
+Object.assign(ACT,{
+ wStyle:a=>{const[id,k]=String(a).split('|');if(k)CFG.wStyle[id]=k;else delete CFG.wStyle[id];saveCfg();build()},
+ wMove:a=>{const[id,d]=String(a).split('|');nudgeWidget(id,+d)},
+ wReset:()=>{CFG.worder=[];saveCfg();build()}});
+
+/* ---- chú thích (tooltip) tự vẽ: tooltip gốc của Windows làm nuốt cú chuột phải đầu tiên ---- */
+const tip=document.createElement('div');tip.id='tip';document.body.appendChild(tip);let tipT=0;
+function hideTip(){clearTimeout(tipT);if(tip.classList.contains('show')){tip.classList.remove('show');kick()}}
+track.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[title],[data-tip]');if(!el||!track.contains(el))return;
+ if(el.getAttribute('title')){el.dataset.tip=el.getAttribute('title');el.removeAttribute('title')}
+ const t=el.dataset.tip;if(!t)return;clearTimeout(tipT);
+ tipT=setTimeout(()=>{if(POP&&!el.closest('.w.act'))return;tip.textContent=t;tip.classList.add('show');const r=el.getBoundingClientRect(),tw=tip.offsetWidth;
+  tip.style.left=clamp(r.left+r.width/2-tw/2,6,innerWidth-tw-6)+'px';tip.style.top=(dock.classList.contains('top')?r.bottom+8:r.top-tip.offsetHeight-8)+'px';kick()},400)});
+track.addEventListener('mouseout',hideTip);
+['mousedown','contextmenu','dragstart','click'].forEach(n=>track.addEventListener(n,hideTip,true));

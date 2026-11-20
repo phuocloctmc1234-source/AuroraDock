@@ -73,7 +73,8 @@ namespace Aurora
                         CopyShared(db, c); CopyShared(db + "-wal", c + "-wal"); CopyShared(db + "-shm", c + "-shm");
                         cache = Read(c); stamp = st; lastErr = "";
                     }
-                    res["ok"] = true; res["items"] = cache;
+                    res["ok"] = true;
+                    var all = new List<object>(LarkPopup.Items()); all.AddRange(cache); res["items"] = all;
                 }
                 catch (Exception e) { lastErr = e.Message; res["ok"] = false; res["error"] = e.Message; res["items"] = cache; App.Log("notifs: " + e.Message); }
                 return res;

@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $bin = Join-Path $root 'bin'
 $exe = Join-Path $bin 'AuroraHost.exe'
+# Go dau "tai tu Internet" (Mark of the Web) khi giai nen tu file zip: neu khong, Windows co the chan DLL/script va app khong mo duoc
+Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 $newest = (Get-ChildItem (Join-Path $root 'host') -Filter *.cs | Measure-Object LastWriteTime -Maximum).Maximum
 if (-not (Test-Path $exe) -or (Get-Item $exe).LastWriteTime -lt $newest) {
   Write-Host 'Dang bien dich Aurora Host...'

@@ -239,6 +239,34 @@ namespace Aurora
             return new Dictionary<string, object> { { "me", new Dictionary<string, object> { { "openId", me }, { "name", S(c, "name") } } }, { "mode", mode }, { "note", note }, { "items", items }, { "at", App.NowMs() } };
         }
 
+        // Tim cuoc tro chuyen theo TEN bang API (nguoi: search/v1/user, nhom: chats/search). Tra ve deep link hoac null (-> dung cach tu dong hoa giao dien).
+        public static string FindChatUrl(string name)
+        {
+            try
+            {
+                var c = Load(); if (S(c, "refresh") == "" && S(c, "access") == "") return null;
+                string tok = Token(c); c = Load(); string q = Uri.EscapeDataString(name);
+                try
+                {
+                    var r = Api(c, "GET", "/open-apis/search/v1/user?query=" + q + "&page_size=5", tok, null);
+                    var d = r.ContainsKey("data") ? r["data"] as Dictionary<string, object> : null;
+                    if (d != null && d.ContainsKey("users"))
+                        foreach (var u in (System.Collections.IEnumerable)d["users"]) { var ud = u as Dictionary<string, object>; if (ud != null && string.Equals((J.Str(ud, "name") ?? "").Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase) && J.Str(ud, "open_id") != null) return Applink(c) + "/client/chat/open?openId=" + Uri.EscapeDataString(J.Str(ud, "open_id")); }
+                }
+                catch (Exception e) { App.Warn("lark user search: " + e.Message); }
+                try
+                {
+                    var r = Api(c, "GET", "/open-apis/im/v1/chats/search?query=" + q + "&page_size=5", tok, null);
+                    var d = r.ContainsKey("data") ? r["data"] as Dictionary<string, object> : null;
+                    if (d != null && d.ContainsKey("items"))
+                        foreach (var it in (System.Collections.IEnumerable)d["items"]) { var cd = it as Dictionary<string, object>; if (cd != null && string.Equals((J.Str(cd, "name") ?? "").Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase) && J.Str(cd, "chat_id") != null) return Applink(c) + "/client/chat/open?openChatId=" + Uri.EscapeDataString(J.Str(cd, "chat_id")); }
+                }
+                catch (Exception e) { App.Warn("lark chat search: " + e.Message); }
+            }
+            catch (Exception e) { App.Warn("lark find chat: " + e.Message); }
+            return null;
+        }
+
         // Tra loi nhanh mot tin (bang quyen cua ban, user token). Can quyen im:message (hoac im:message:send_as_user) trong app Lark.
         public static object Reply(Dictionary<string, object> a)
         {
