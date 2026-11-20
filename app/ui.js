@@ -33,7 +33,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePop();closePan
 
 function openPanel(sel){panel.classList.add('show');setInteractive(true);kick(1200);if(sel){setTimeout(()=>{const t=$(sel);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})},200)}}
 function closePanel(){panel.classList.remove('show');kick(1200);setTimeout(()=>{if(!(document.activeElement&&document.activeElement.matches('input,textarea')))setInteractive(false)},100)}
-$('#gear').onclick=()=>panel.classList.contains('show')?closePanel():openPanel();$('#close').onclick=closePanel;
+$('#gear').onclick=()=>panel.classList.contains('show')?closePanel():openPanel();$('#close').onclick=closePanel;$('#exitb').onclick=()=>host('key',{k:'desktop'}).catch(e=>toast(e.message));
 $('#startb').onclick=()=>host('key',{k:'start'}).catch(e=>toast(e.message));
 document.addEventListener('pointerdown',e=>{if(e.target.closest('input,textarea'))setInteractive(true)},true);
 document.addEventListener('focusout',()=>setTimeout(()=>{if(!panel.classList.contains('show')&&!(document.activeElement&&document.activeElement.matches('input,textarea')))setInteractive(false)},80));
@@ -82,6 +82,7 @@ $('#wlist').onclick=e=>{const s=e.target.closest('.sw');if(!s)return;const w=W[+
 
 const NUMS={leadStart:1,graceMin:1,leadBrk:1,cdSec:1,pollSched:1,pollState:1,sdLead:1};
 function onCfg(k){
+ if(k==='hideBannerExp'&&DATA.notif)syncBanners(DATA.notif);
  if(k==='sdUrl'){DATA.sd=null;ERR.sd='';if(CFG.sdUrl){if(!('sd' in CFG.wOn)){setWidgetOn('sd',true);const wk=W.find(x=>x.id==='wk');if(wk&&wk.on){setWidgetOn('wk',false);toast('Đã bật widget Shift Desk · Break và tắt widget "Ca làm" cục bộ (tránh ghi trùng)')}}runProviders(true,'sd')}refreshSdUi()}
  if(k==='compact'){document.body.classList.toggle('compact',CFG.compact);syncBar()}
  if(k==='autoContrast')apply(STY[cur.sty],false);

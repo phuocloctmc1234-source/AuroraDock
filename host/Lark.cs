@@ -239,6 +239,25 @@ namespace Aurora
             return new Dictionary<string, object> { { "me", new Dictionary<string, object> { { "openId", me }, { "name", S(c, "name") } } }, { "mode", mode }, { "note", note }, { "items", items }, { "at", App.NowMs() } };
         }
 
+        // Tra loi nhanh mot tin (bang quyen cua ban, user token). Can quyen im:message (hoac im:message:send_as_user) trong app Lark.
+        public static object Reply(Dictionary<string, object> a)
+        {
+            string id = J.Str(a, "id"), text = (J.Str(a, "text") ?? "").Trim();
+            if (string.IsNullOrEmpty(id) || text == "") throw new Exception("Thieu noi dung tra loi");
+            var c = Load(); string tok = Token(c); c = Load();
+            try
+            {
+                Api(c, "POST", "/open-apis/im/v1/messages/" + Uri.EscapeDataString(id) + "/reply", tok, new Dictionary<string, object> { { "msg_type", "text" }, { "content", J.S.Serialize(new Dictionary<string, object> { { "text", text } }) } });
+            }
+            catch (Exception e)
+            {
+                if (e.Message.IndexOf("99991672", StringComparison.Ordinal) >= 0 || e.Message.IndexOf("scope", StringComparison.OrdinalIgnoreCase) >= 0 || e.Message.IndexOf("permission", StringComparison.OrdinalIgnoreCase) >= 0)
+                    throw new Exception("Chua co quyen gui tin: bat quyen im:message:send_as_user trong app Lark, them vao Scopes (Nang cao) roi Dang nhap lai. (" + e.Message + ")");
+                throw;
+            }
+            return true;
+        }
+
         static List<Dictionary<string, object>> ViaSearch(Dictionary<string, object> c, string tok, string me, long since)
         {
             var ids = new List<string>(); string pt = "";

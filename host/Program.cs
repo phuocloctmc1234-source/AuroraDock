@@ -314,6 +314,8 @@ namespace Aurora
                 case "secretDel": Secrets.Del(J.Str(a, "name")); return true;
                 case "secretList": return Secrets.Names();
                 case "secretFetch": return Secrets.FetchUrlSecret(J.Str(a, "name"));
+                case "notifApps": return Notifs.InstalledApps();
+                case "notifBanners": return Notifs.SetBanners(a);
                 case "notifs": return Notifs.Snapshot();
                 case "claudeHook":
                     { string act = J.Str(a, "action"); return act == "install" ? ClaudeHook.Install() : act == "remove" ? ClaudeHook.Remove() : ClaudeHook.Status(); }
@@ -326,6 +328,7 @@ namespace Aurora
                 case "larkConfig": return Lark.Configure(a);
                 case "larkLogin": return Lark.Login(a);
                 case "larkLogout": return Lark.Logout();
+                case "larkReply": return Lark.Reply(a);
                 case "larkMentions": return Lark.Mentions(a);
                 case "glass": return true;   // mau phu do CSS dam nhiem; blur la DWM blur-behind theo vung
                 case "defaults": return Defaults();
@@ -486,6 +489,7 @@ namespace Aurora
             try { N.UnregisterHotKey(Handle, HOTKEY_QUIT); } catch { }
             try { if (barRegistered) { var r = Abd(); N.SHAppBarMessage(1, ref r); barRegistered = false; } } catch { }
             try { Taskbar.Restore(); } catch { }
+            try { Notifs.RestoreBanners(); } catch { }
             try { ScreenTime.Flush(); } catch { }
             try { ShiftDesk.Shutdown(); } catch { }
             try { if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; } } catch { }

@@ -15,7 +15,8 @@ const dock=$('#dock'),track=$('#track'),pop=$('#pop'),panel=$('#panel');
 /* ---------- cấu hình (lưu trong hồ sơ WebView của app) ---------- */
 const CFG=Object.assign({autoStart:true,leadStart:10,graceMin:60,autoBrk:true,leadBrk:1,cdSec:10,url:'',token:'',pollSched:60,pollState:60,
  sty:0,sliders:null,eco:true,autoEco:true,pos:'bottom',lay:'pill',autoContrast:true,compact:false,ctx:true,slAuto:false,bed:'23:00',wake:'06:30',
- wOn:{},taskbar:'autohide',reserve:true,pins:null,city:'',geo:null,claudeLimit:'',man:{start:'',brkFrom:'',brkTo:''},todos:[],sdUrl:'',sdAuto:false,sdLead:1,nApps:{},nSeen:{}},store.get('cfg',{}));
+ wOn:{},taskbar:'autohide',reserve:true,pins:null,city:'',geo:null,claudeLimit:'',man:{start:'',brkFrom:'',brkTo:''},todos:[],sdUrl:'',sdAuto:false,sdLead:1,nApps:{},nSeen:{},hideBannerExp:true},store.get('cfg',{}));
+if(!store.get('bnMig2')){CFG.hideBannerExp=true;store.set('bnMig2',1);try{store.set('cfg',CFG)}catch(e){}}
 CFG.nApps=CFG.nApps||{};CFG.nSeen=CFG.nSeen||{};CFG.wOn=CFG.wOn||{};CFG.man=CFG.man||{start:'',brkFrom:'',brkTo:''};CFG.todos=CFG.todos||[];
 const saveCfg=()=>store.set('cfg',CFG);
 

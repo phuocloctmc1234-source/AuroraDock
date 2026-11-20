@@ -62,28 +62,43 @@ function renderBubbles(){
  const had=new Set([...bubbles.querySelectorAll('.bubble[data-chat]')].map(e=>e.dataset.chat));bubSig=sig;
  const vis=gs.slice(0,6),extra=gs.length-vis.length;
  bubbles.innerHTML=vis.map(g=>{const h=hue(g.chat),lab=(g.chatName||g.items[0].sender||'?').trim()[0]||'?';
-  return `<div class="bubble ${!had.has(g.chat)||NEWCHAT.has(g.chat)?'new':''}" data-chat="${esc(g.chat)}" style="--c1:hsl(${h} 75% 58%);--c2:hsl(${(h+50)%360} 70% 45%)" title="${esc(g.chatName||g.items[0].sender)}"><span>${esc(lab.toUpperCase())}</span>${g.items.length>1?`<i class="bn">${g.items.length}</i>`:''}</div>`}).join('')
+  return `<div class="bubble ${!had.has(g.chat)||NEWCHAT.has(g.chat)?'new':''}" data-chat="${esc(g.chat)}" style="--c1:hsl(${h} 75% 58%);--c2:hsl(${(h+50)%360} 70% 45%)" data-app="${esc((g.app||'?').trim()[0]||'?').toUpperCase()}" title="${esc(g.chatName||g.items[0].sender)}"><span>${esc(lab.toUpperCase())}</span>${g.items.length>1?`<i class="bn">${g.items.length}</i>`:''}</div>`}).join('')
   +(extra>0?`<div class="bubble more" data-more="1" title="Còn ${extra} cuộc trò chuyện nữa">+${extra}</div>`:'');
  NEWCHAT.clear();placeStack();
  if(openChat&&!gs.find(g=>g.chat===openChat))closeCard();
  kick(900)}
 function bubbleOf(chat){return [...bubbles.querySelectorAll('.bubble[data-chat]')].find(e=>e.dataset.chat===chat)}
 function openCardFor(chat){const g=groupsL().find(x=>x.chat===chat),el=bubbleOf(chat);if(!g||!el)return;
- openChat=chat;
- bcard.innerHTML=`<div class="bh"><b>${esc(g.chatName||g.items[0].sender)}</b><span>${g.items.length>1?g.items.length+' tin · ':''}${esc(g.app||'')}</span></div>`
-  +g.items.slice(0,4).map(i=>`<div class="bm"><small><span>${esc(i.sender)}</span><span>${ago(i.t)}</span></small><p>${esc(i.text||'…')}</p></div>`).join('')
-  +(g.items.length>4?`<div class="note" style="font-size:11px;opacity:.6">và ${g.items.length-4} tin nữa…</div>`:'')
-  +`<div class="bf"><button class="btn" data-bact="open">Mở trong Lark</button><button class="btn" data-bact="seen">Đã xem</button></div>`;
+ openChat=chat;const h=hue(g.chat),name=g.chatName||g.items[0].sender,lab=(name||'?').trim()[0]||'?';
+ const msgs=g.items.slice(0,6).reverse();   // cũ → mới, như khung chat
+ bcard.innerHTML=`<div class="bh"><span class="av" style="--c1:hsl(${h} 75% 58%);--c2:hsl(${(h+50)%360} 70% 45%)">${esc(lab.toUpperCase())}</span><div class="bt"><b>${esc(name)}</b><span>${esc(g.app||'')}${g.items.length>1?' · '+g.items.length+' tin':''}</span></div><button class="bx" data-bact="close" title="Đóng">✕</button></div>`
+  +`<div class="bl" id="bl">`+(g.items.length>6?`<div class="bmore">… ${g.items.length-6} tin cũ hơn</div>`:'')
+  +msgs.map(i=>`<div class="bm"><small>${esc(i.sender)} · ${ago(i.t)}</small><p>${esc(i.text||'…')}</p></div>`).join('')+`</div>`
+  +`<div class="br"><input class="inp" id="bIn" placeholder="${g.items[0].src==='lark'?'Trả lời nhanh…':'Soạn tin (sẽ sao chép và mở '+esc(g.app||'app')+')'}" autocomplete="off"><button class="bsend" id="bSend" data-bact="send" title="Gửi">➤</button></div>`
+  +`<div class="bf"><button class="btn" data-bact="open">Mở ${esc(g.app||'app')}</button><button class="btn" data-bact="seen">Đã xem</button></div>`;
  const r=el.getBoundingClientRect(),left=bubbles.classList.contains('left');
- bcard.style.left=(left?r.right+12:Math.max(10,r.left-12-310))+'px';
+ bcard.style.left=(left?r.right+12:Math.max(10,r.left-12-330))+'px';
  bcard.classList.add('show');
- const h=bcard.offsetHeight;bcard.style.top=clamp(r.top+r.height/2-h/2,10,innerHeight-h-90)+'px';kick(700)}
+ const hh=bcard.offsetHeight;bcard.style.top=clamp(r.top+r.height/2-hh/2,10,innerHeight-hh-90)+'px';
+ const bl=$('#bl');if(bl)bl.scrollTop=bl.scrollHeight;kick(700)}
 function closeCard(){openChat=null;bcard.classList.remove('show');kick(500)}
 function markGroupSeen(chat){const g=groupsL().find(x=>x.chat===chat);if(!g)return;g.items.forEach(i=>LSEEN.add(i.id));saveSeen();
  const el=bubbleOf(chat);closeCard();if(el){el.classList.add('out');setTimeout(()=>{renderBubbles();tick()},230)}else{renderBubbles();tick()}}
+async function sendReply(){const inp=$('#bIn');if(!inp||!openChat)return;const text=inp.value.trim();if(!text)return;
+ const chat=openChat,g=groupsL().find(x=>x.chat===chat);if(!g)return;const last=g.items[0];
+ if(last.src==='lark'){inp.disabled=true;
+  try{await host('larkReply',{id:last.id,text},30000);
+   const bl=$('#bl');if(bl)bl.insertAdjacentHTML('beforeend',`<div class="bm me"><p>${esc(text)}</p></div>`),bl.scrollTop=bl.scrollHeight;
+   toast('✓ Đã gửi trả lời');inp.value='';setTimeout(()=>markGroupSeen(chat),700)}
+  catch(e){inp.disabled=false;toast('Không gửi được: '+e.message)}}
+ else{try{await navigator.clipboard.writeText(text)}catch(_){}
+  host('launch',{target:g.url}).catch(()=>{});toast('Đã sao chép tin — dán (Ctrl+V) vào ô chat để gửi');markGroupSeen(chat)}}
 bcard.addEventListener('click',e=>{const b=e.target.closest('[data-bact]');if(!b||!openChat)return;const chat=openChat,g=groupsL().find(x=>x.chat===chat);
- if(b.dataset.bact==='open'&&g)host('launch',{target:g.url}).catch(err=>toast('Không mở được Lark: '+err.message));
+ if(b.dataset.bact==='close'){closeCard();return}
+ if(b.dataset.bact==='send'){sendReply();return}
+ if(b.dataset.bact==='open'&&g)host('launch',{target:g.url}).catch(err=>toast('Không mở được '+(g.app||'app')+': '+err.message));
  markGroupSeen(chat)});
+bcard.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='bIn'){e.preventDefault();sendReply()}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.bubble')&&!e.target.closest('#bcard'))closeCard()},true);
 
 /* kéo bong bóng: đi theo con trỏ, thả ra thì hít vào mép trái/phải gần nhất */
@@ -109,13 +124,17 @@ function refreshLarkUi(){const s=DATA.larkStatus;if(!s)return;lkDomain=s.domain;
  sec.placeholder=s.hasSecret?'App Secret (đã lưu — để trống nếu không đổi)':'App Secret';$('#lk-redirect').value=s.redirect||'';
  $('#st-lark').textContent=s.loggedIn?'✓ '+(s.name||'đã đăng nhập'):s.waiting?'… đang chờ bạn đăng nhập trong trình duyệt':s.configured?'đã lưu cấu hình, chưa đăng nhập':'chưa cấu hình';
  if(s.error)$('#st-lark').textContent+=' · ✗ '+s.error;
+ const done=s.loggedIn&&!lkEdit;$('#lk-done').style.display=done?'':'none';$('#lk-form').style.display=done?'none':'';
  const w=W.find(x=>x.id==='lark');if(w)tick()}
+let lkEdit=false;
 $('#segLk').onclick=e=>{const b=e.target.closest('button');if(!b)return;lkDomain=b.dataset.v;document.querySelectorAll('#segLk button').forEach(x=>x.classList.toggle('on',x===b))};
 $('#lk-redirect').onclick=e=>{e.target.select();try{navigator.clipboard.writeText(e.target.value);toast('Đã chép địa chỉ Redirect URL')}catch(_){}};
 async function larkSave(){await host('larkConfig',{domain:lkDomain,appId:$('#lk-id').value,appSecret:$('#lk-secret').value,scopes:$('#lk-scopes').value});$('#lk-secret').value='';
  DATA.larkStatus=await host('larkStatus');refreshLarkUi()}
 $('#lk-save').onclick=async()=>{try{await larkSave();toast('✓ Đã lưu cấu hình Lark (mã hóa)')}catch(e){toast('Lỗi: '+e.message)}};
-$('#lk-login').onclick=async()=>{try{await larkSave();await host('larkLogin',{});toast('Đã mở trình duyệt — hãy đăng nhập và cho phép trên trang Lark');
+$('#lk-edit').onclick=()=>{lkEdit=true;refreshLarkUi()};
+$('#lk-login2').onclick=()=>$('#lk-login').onclick();
+$('#lk-login').onclick=async()=>{try{lkEdit=false;await larkSave();await host('larkLogin',{});toast('Đã mở trình duyệt — hãy đăng nhập và cho phép trên trang Lark');
  for(let i=0;i<150;i++){await sleep(2000);const s=await host('larkStatus');DATA.larkStatus=s;refreshLarkUi();if(!s.waiting)break}
  if(DATA.larkStatus.loggedIn){setWidgetOn('lark',true);toast('✓ Đã kết nối Lark: '+DATA.larkStatus.name);pump('lark')}else if(DATA.larkStatus.error)toast('Lark: '+DATA.larkStatus.error)}catch(e){toast('Lỗi: '+e.message)}};
 /* ---------- Thông báo Windows → bong bóng ---------- */
@@ -130,7 +149,12 @@ const notifWidget={id:'notif',g:'Thông báo',name:'Thông báo → bong bóng',
 W.splice(Math.max(0,W.findIndex(w=>w.id==='lark')),0,notifWidget);
 if('notif' in CFG.wOn)notifWidget.on=CFG.wOn.notif;
 Object.assign(PROV,{notif:{every:3,run:async()=>{const r=await host('notifs');DATA.notif=r;onNotifData(r)}}});
-function onNotifData(r){
+let INST=[];
+async function loadInst(){try{INST=await host('notifApps',{},40000);INST.forEach(a=>{const k='app:'+a.aumid.toLowerCase();if(!CFG.nSeen[k]&&NOTIF_RE.test(a.name+' '+a.aumid)){CFG.nSeen[k]=a.name}});saveCfg();const el=$('#nlist');if(el)el._sig='';refreshNotifUi();if(DATA.notif)syncBanners(DATA.notif)}catch(e){}}
+setTimeout(loadInst,1500);
+let lastBn='';
+function syncBanners(r){const ids=CFG.hideBannerExp&&notifOn()?[...new Set(r.items.filter(nEnabled).map(i=>i.aumid).concat(INST.filter(a=>nEnabled({aumid:a.aumid,app:a.name,site:''})).map(a=>a.aumid)).filter(Boolean))]:[];const s=ids.sort().join('|');lastBn=s;host('notifBanners',{aumids:ids}).catch(()=>{lastBn=''})}
+function onNotifData(r){syncBanners(r);
  r.items.forEach(i=>{const k=nKey(i);if(!CFG.nSeen[k]){CFG.nSeen[k]=i.site||i.app;saveCfg()}});
  const cur=itemsWin(),fresh=lastNIds?cur.filter(i=>!lastNIds.has(i.id)&&!LSEEN.has(i.id)):[];
  fresh.slice(0,3).forEach(i=>toast('💬 '+nTitle(i)+': '+(i.text||'').slice(0,70)));fresh.forEach(i=>NEWCHAT.add(i.chat));
@@ -140,6 +164,6 @@ function refreshNotifUi(){const el=$('#nlist');if(!el)return;const n=DATA.notif;
  const keys=Object.keys(CFG.nSeen).sort();
  const sig=keys.join(',')+JSON.stringify(CFG.nApps);if(el._sig===sig)return;el._sig=sig;
  el.innerHTML=keys.length?keys.map(k=>{const on=(k in CFG.nApps)?CFG.nApps[k]:NOTIF_RE.test(k+' '+CFG.nSeen[k]);return `<div class="tg"><span>${esc(CFG.nSeen[k])}<small>${esc(k.startsWith('site:')?'trang web (qua trình duyệt)':'ứng dụng')}</small></span><div class="sw ${on?'on':''}" data-nk="${esc(k)}"></div></div>`}).join(''):'<div class="mini2">Chưa thấy thông báo nào. Khi có app nào gửi thông báo, nó sẽ hiện ở đây để bạn chọn.</div>'}
-$('#nlist').onclick=e=>{const s=e.target.closest('.sw');if(!s)return;const k=s.dataset.nk,cur=s.classList.contains('on');CFG.nApps[k]=!cur;saveCfg();$('#nlist')._sig='';refreshNotifUi();renderBubbles();tick()};
+$('#nlist').onclick=e=>{const s=e.target.closest('.sw');if(!s)return;const k=s.dataset.nk,cur=s.classList.contains('on');CFG.nApps[k]=!cur;saveCfg();if(DATA.notif)syncBanners(DATA.notif);$('#nlist')._sig='';refreshNotifUi();renderBubbles();tick()};
 $('#lk-logout').onclick=async()=>{try{await host('larkLogout');DATA.larkStatus=await host('larkStatus');DATA.lark=null;lastIds=null;refreshLarkUi();renderBubbles();tick();toast('Đã đăng xuất Lark')}catch(e){toast('Lỗi: '+e.message)}};
 placeStack();

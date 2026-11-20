@@ -80,6 +80,65 @@ namespace Aurora
             }
         }
 
+        // ---------- An banner (popup goc man hinh) cua Windows cho app da bat bong bong; van giu trong Trung tam thong bao de doc ----------
+        const string NSET = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\";
+        static string lastSig = ""; static DateTime lastApply = DateTime.MinValue;
+        static readonly HashSet<string> hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public static object SetBanners(Dictionary<string, object> a)
+        {
+            var want = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var l = a != null && a.ContainsKey("aumids") ? a["aumids"] as System.Collections.IEnumerable : null;
+            if (l != null) foreach (var o in l) { string s = Convert.ToString(o); if (!string.IsNullOrEmpty(s)) want.Add(s); }
+            lock (hidden)
+            {
+                // khong gianh voi Cai dat Windows: chi ap lai toi da 1 lan / 30 giay (tru khi danh sach app doi)
+                string sig = string.Join("|", want); var now = DateTime.UtcNow;
+                if (sig == lastSig && (now - lastApply).TotalSeconds < 30) return hidden.Count;
+                lastSig = sig; lastApply = now;
+                foreach (var id in new List<string>(hidden)) if (!want.Contains(id)) { Banner(id, true); hidden.Remove(id); }
+                foreach (var id in want) if (Banner(id, false)) hidden.Add(id);
+                return hidden.Count;
+            }
+        }
+        public static void RestoreBanners() { lock (hidden) { foreach (var id in hidden) Banner(id, true); hidden.Clear(); } }
+        static bool Banner(string aumid, bool show)
+        {
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(NSET + aumid, true))
+                {
+                    if (k == null) return false;   // KHONG tu tao muc: Windows tao khi app gui thong bao dau tien
+                    // Chi dong vao muc do WINDOWS tao (co LastNotificationAddedTime) cua app dang bat thong bao; muc tu che/thieu gia tri lam Cai dat Windows khong bat lai duoc
+                    if (!show && (k.GetValue("LastNotificationAddedTime") == null || Convert.ToInt32(k.GetValue("Enabled", 1)) == 0 || Convert.ToInt32(k.GetValue("ShowInActionCenter", 1)) == 0)) return false;
+                    if (show) k.DeleteValue("ShowBanner", false); else k.SetValue("ShowBanner", 0, RegistryValueKind.DWord);
+                    return true;
+                }
+            }
+            catch (Exception e) { App.Log("banner " + aumid + ": " + e.Message); return false; }
+        }
+
+        // ---------- danh sach app da cai (de chon bat bong bong truoc khi chung gui thong bao dau tien) ----------
+        static List<object> apps; static readonly object AL = new object();
+        public static object InstalledApps()
+        {
+            lock (AL)
+            {
+                if (apps != null) return apps;
+                var l = new List<object>();
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo { FileName = "powershell.exe", Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-StartApps | ForEach-Object { $_.Name + [char]9 + $_.AppID }\"", RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8 };
+                    using (var p = System.Diagnostics.Process.Start(psi))
+                    {
+                        string o = p.StandardOutput.ReadToEnd(); p.WaitForExit(20000);
+                        foreach (var ln in o.Split('\n')) { var t = ln.TrimEnd('\r').Split('\t'); if (t.Length == 2 && t[1].Length > 0 && !t[1].Contains("/") && !t[1].Contains("\\")) l.Add(new Dictionary<string, object> { { "name", t[0] }, { "aumid", t[1] } }); }
+                    }
+                }
+                catch (Exception e) { App.Log("apps: " + e.Message); }
+                apps = l; return apps;
+            }
+        }
+
         static byte[] Z(string s) { var b = Encoding.UTF8.GetBytes(s); var r = new byte[b.Length + 1]; Array.Copy(b, r, b.Length); return r; }
         static string Txt(IntPtr p) { return p == IntPtr.Zero ? "" : Marshal.PtrToStringAnsi(p) == null ? "" : Utf8(p); }
         static string Utf8(IntPtr p) { int n = 0; while (Marshal.ReadByte(p, n) != 0) n++; var b = new byte[n]; Marshal.Copy(p, b, 0, n); return Encoding.UTF8.GetString(b); }
